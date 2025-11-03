@@ -1,0 +1,394 @@
+openapi: 3.0.3
+info:
+  title: Auth Service API
+  description: Authentication service providing user login, token refresh, logout, and user information endpoints
+  version: 1.0.0
+  contact:
+    name: Auth Service Team
+    email: support@authservice.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8090
+    description: Local development server
+  - url: https://e29d425094dc.ngrok-free.app/
+    description: Production server
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns the health status of the service
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '500':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/login:
+    post:
+      summary: User login
+      description: Authenticate user with email and password
+      operationId: login
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+          headers:
+            Set-Cookie:
+              description: Refresh token cookie
+              schema:
+                type: string
+                example: refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Lax
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/refresh:
+    post:
+      summary: Refresh access token
+      description: Generate new access token using refresh token
+      operationId: refresh
+      tags:
+        - Authentication
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      parameters:
+        - name: Refresh-Token
+          in: header
+          description: Refresh token from header (alternative to cookie)
+          required: false
+          schema:
+            type: string
+            example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        - name: Cookie
+          in: header
+          description: Refresh token from cookie
+          required: false
+          schema:
+            type: string
+            example: refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      responses:
+        '200':
+          description: Token refresh successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/logout:
+    post:
+      summary: User logout
+      description: Revoke all refresh tokens for authenticated user
+      operationId: logout
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Logout successful; no content
+          headers:
+            Set-Cookie:
+              description: Clear refresh token cookie
+              schema:
+                type: string
+                example: refresh_token=; HttpOnly; Secure; SameSite=Lax; Max-Age=0
+        '401':
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/me:
+    get:
+      summary: Get current user information
+      description: Retrieve information about the currently authenticated user
+      operationId: getCurrentUser
+      tags:
+        - User
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token for authentication
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+      required:
+        - status
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: "demo@example.com"
+          description: User's email address
+        password:
+          type: string
+          format: password
+          example: "Demo1234!"
+          description: User's password
+        remember_me:
+          type: boolean
+          example: false
+          description: Whether to extend refresh token TTL
+        recaptcha_token:
+          type: string
+          example: "03AGdBq25..."
+          description: reCAPTCHA token (optional)
+      required:
+        - email
+        - password
+
+    LoginResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            access_token:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+              description: JWT access token
+            token_type:
+              type: string
+              example: "Bearer"
+              description: Token type
+            expires_in:
+              type: integer
+              example: 3600
+              description: Token expiration time in seconds
+          required:
+            - access_token
+            - token_type
+            - expires_in
+        success:
+          type: boolean
+          example: true
+      required:
+        - data
+        - success
+
+    RefreshRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          description: Refresh token (optional if provided via cookie)
+
+    RefreshResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            access_token:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+              description: New JWT access token
+            token_type:
+              type: string
+              example: "Bearer"
+              description: Token type
+            expires_in:
+              type: integer
+              example: 3600
+              description: Token expiration time in seconds
+          required:
+            - access_token
+            - token_type
+            - expires_in
+        success:
+          type: boolean
+          example: true
+      required:
+        - data
+        - success
+
+
+
+    MeResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: "123e4567-e89b-12d3-a456-426614174000"
+              description: User's unique identifier
+            email:
+              type: string
+              format: email
+              example: "demo@example.com"
+              description: User's email address
+          required:
+            - id
+            - email
+        success:
+          type: boolean
+          example: true
+      required:
+        - data
+        - success
+
+    SuccessResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          nullable: true
+          example: null
+        success:
+          type: boolean
+          example: true
+      required:
+        - success
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "INVALID_CREDENTIALS"
+              description: Error code
+            message:
+              type: string
+              example: "Invalid email or password"
+              description: Human-readable error message
+            details:
+              type: object
+              nullable: true
+              description: Additional error details
+          required:
+            - code
+            - message
+        success:
+          type: boolean
+          example: false
+      required:
+        - error
+        - success
+
+tags:
+  - name: Health
+    description: Health check operations
+  - name: Authentication
+    description: User authentication operations
+  - name: User
+    description: User information operations
