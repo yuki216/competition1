@@ -60,9 +60,9 @@ AI membuat tiket otomatis jika perintah mengandung kata aksi (*“tolong buatkan
 **Main Flow:**
 
 1. Sistem mengirimkan deskripsi ke `AISuggestionService`.
-2. AI membandingkan dengan entri `KnowledgeBase`.
+2. AI melakukan similarity search terhadap embedding `KnowledgeBase` yang disimpan di Postgres (pgvector).
 3. AI mengembalikan rekomendasi solusi (jika ditemukan) beserta confidence score.
-4. Solusi ditampilkan ke employee sebelum tiket dibuat.
+4. Solusi ditampilkan ke employee sebelum tiket dibuat. Opsional: rekomendasi dikirim bertahap via SSE (Server-Sent Events) untuk mempercepat time-to-first-hint.
 
 **Acceptance Criteria:**
 
@@ -161,6 +161,8 @@ AI membuat tiket otomatis jika perintah mengandung kata aksi (*“tolong buatkan
 | ----------------- | ------------------------------------------------------------- |
 | **Performance**   | Response ≤ 300ms untuk operasi non-AI                         |
 | **AI Inference**  | Max latency 2s untuk saran mitigasi                           |
+| **Vector Search** | Top-K=10 dalam ≤ 200ms pada ≥ 100k chunks menggunakan approximate index (ivfflat) |
+| **SSE Streaming** | Time-to-first-event ≤ 500ms; flush cadence ≤ 250ms; heartbeat setiap ≤ 15s |
 | **Reliability**   | 99.9% uptime                                                  |
 | **Security**      | Data tiket hanya dapat diakses oleh pembuat & tim IT          |
 | **Auditability**  | Semua perubahan status, assignment, dan komentar tercatat     |
@@ -180,6 +182,8 @@ AI membuat tiket otomatis jika perintah mengandung kata aksi (*“tolong buatkan
 | **AI Insight**     | Hasil analisis AI berupa saran mitigasi dan confidence            |
 | **Comment**        | Catatan percakapan antara pihak terkait tiket                     |
 | **Assignment**     | Penunjukan tanggung jawab tiket kepada admin tertentu             |
+| **Embedding**      | Representasi numerik berdimensi tetap dari teks (vector) yang dipakai untuk pencarian kemiripan |
+| **Vector Index**   | Struktur indeks untuk mempercepat pencarian kemiripan vektor (mis. ivfflat pada pgvector) |
 | **Metric**         | Data performa sistem (SLA, response time, AI accuracy)            |
 
 ---
@@ -202,6 +206,8 @@ AI membuat tiket otomatis jika perintah mengandung kata aksi (*“tolong buatkan
 * [ ] Setiap entity domain memiliki invariant & relasi dasar.
 * [ ] Error catalog awal disiapkan (`pkg/errorcodes/`).
 * [ ] Knowledge base schema dan AI integration didefinisikan di `plan.md`.
+* [ ] Postgres + pgvector dipilih sebagai penyimpanan embedding; DDL dasar disepakati.
+* [ ] SSE streaming untuk `/v1/ai/suggest/stream` memiliki spesifikasi event & skenario uji.
 * [ ] Endpoint REST sesuai di `api/openapi.yaml`.
 * [ ] SLA metrics sudah punya definisi formula & sumber data.
 * [ ] Feedback loop AI sudah punya alur pembelajaran minimal (resolve → train).
@@ -217,3 +223,172 @@ AI membuat tiket otomatis jika perintah mengandung kata aksi (*“tolong buatkan
 3. Definisikan katalog error (`pkg/errorcodes/`).
 4. Siapkan data mock (tickets, comments, knowledge entries) untuk testing awal.
 5. Jalankan sesi review domain ubiquitous sebelum implementasi usecase pertama.
+
+---
+
+## 9. Knowledge Base dengan Embedding Vektor (Postgres)
+
+### 9.1 Tujuan
+
+- Memungkinkan AI melakukan pencarian solusi berbasis kemiripan semantik.
+- Menyimpan dan mengelola konten knowledge base secara terstruktur dengan kemampuan vektor search yang efisien.
+
+### 9.2 Kebutuhan Fungsional
+
+- Admin dapat membuat, memperbarui, dan mem-publish entri knowledge base.
+- Sistem melakukan chunking konten panjang menjadi potongan kecil (mis. 500–1000 karakter) untuk kualitas embedding yang lebih baik.
+- Sistem menghasilkan embedding untuk setiap chunk dan menyimpannya di Postgres dengan tipe `vector(D)`.
+- AI Suggestion melakukan Top-K similarity search (cosine distance) terhadap embedding yang berstatus `active/published`.
+- Dapat memfilter hasil berdasarkan kategori, status, atau tag.
+- Re-embed & re-index otomatis saat entri diperbarui.
+
+### 9.3 Kebutuhan Non-Fungsional Khusus KB
+
+- Latency pencarian: ≤ 200ms untuk Top-K=10 pada ≥ 100k chunks dengan ivfflat.
+- Konsistensi: publish harus atomic (konten + embedding tersedia bersamaan).
+- Observability: log `query_time_ms`, `top_k`, `avg_score`, dan jumlah kandidat.
+- Keamanan: hanya AI service yang memiliki akses read ke tabel embedding; hanya Admin yang dapat publish.
+
+### 9.4 Skema Data (Konseptual)
+
+- `knowledge_entries`
+  - id (uuid), title (text), content (text), status (enum: draft|active|archived), category (text), tags (text[]), source_type (text), version (int), created_by (uuid), created_at (timestamptz), updated_at (timestamptz)
+- `kb_chunks`
+  - id (uuid), entry_id (uuid FK → knowledge_entries), chunk_index (int), content (text), embedding (vector(D)), created_at (timestamptz)
+
+Catatan: D (dimension) dikonfigurasi mengikuti model embedding yang dipilih. Nilai umum: 768–1536.
+
+### 9.5 DDL Contoh (Postgres + pgvector)
+
+Prasyarat: `CREATE EXTENSION IF NOT EXISTS vector;`
+
+```
+-- Tabel entri KB
+CREATE TABLE IF NOT EXISTS knowledge_entries (
+  id UUID PRIMARY KEY,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('draft','active','archived')),
+  category TEXT,
+  tags TEXT[],
+  source_type TEXT,
+  version INT NOT NULL DEFAULT 1,
+  created_by UUID NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Tabel chunks + embedding
+-- Ganti 1536 dengan dimensi model embedding yang digunakan
+CREATE TABLE IF NOT EXISTS kb_chunks (
+  id UUID PRIMARY KEY,
+  entry_id UUID NOT NULL REFERENCES knowledge_entries(id) ON DELETE CASCADE,
+  chunk_index INT NOT NULL,
+  content TEXT NOT NULL,
+  embedding VECTOR(1536),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indeks untuk pencarian cepat
+CREATE INDEX IF NOT EXISTS idx_kb_chunks_entry ON kb_chunks(entry_id);
+CREATE INDEX IF NOT EXISTS idx_kb_entries_status ON knowledge_entries(status);
+
+-- Approximate vector index (ivfflat) menggunakan cosine distance
+-- Pastikan ANALYZE setelah populate untuk optimasi list
+CREATE INDEX IF NOT EXISTS idx_kb_chunks_embedding_ivfflat
+  ON kb_chunks USING ivfflat (embedding vector_cosine_ops);
+```
+
+### 9.6 API Surface (Ringkas)
+
+- `POST /kb/entries` → buat entri (draft) menggunakan body JSON `{title, content, category, tags}`
+- `POST /kb/entries/upload-text` → upload teks/Markdown (Content-Type: `text/plain` atau `text/markdown`), param opsional: `title`, `category`, `tags`, `publish=true|false`
+- `PATCH /kb/entries/{id}` → update konten
+- `POST /kb/entries/{id}/publish` → publish + jalankan embedding & indexing
+- `POST /v1/ai/suggest` → input: `query`, optional `filters`, `top_k`; output: daftar rekomendasi dengan `content`, `score`, `entry_id`, `chunk_index` (JSON)
+- `GET  /v1/ai/suggest/stream` → SSE, header: `Content-Type: text/event-stream`; query: `query`, optional `filters`, `top_k`. Mengirim event `init`, banyak `candidate`, `progress`, `end`, `error`.
+  - Catatan: endpoint legacy `POST /ai/suggest` dapat dipertahankan sebagai alias non-versioned (opsional).
+
+### 9.7 Alur Ingest & Retrieval
+
+1. Admin membuat/ubah entri melalui JSON atau upload teks (text/plain/Markdown) → status draft.
+2. Saat publish: sistem normalisasi teks (hapus artefak HTML, normalisasi whitespace, pertahankan heading) → chunking → generate embeddings → simpan ke `kb_chunks` → buat/refresh index.
+3. AI Suggestion menerima query → embed → similarity search Top-K pada `kb_chunks` (status entry = active) → re-ranking heuristik (mis. skor + metadata kecocokan kategori) → hasil dikirim ke UI.
+
+### 9.8 Acceptance Criteria (KB Vector)
+
+- [ ] Query Top-K=10 mengembalikan kandidat relevan dengan rata-rata skor ≥ 0.6 pada dataset uji internal.
+- [ ] Publish atomic: tidak ada state di mana entri aktif tanpa embedding yang tersedia.
+- [ ] Re-embed untuk 10.000 chunks selesai ≤ 5 menit.
+- [ ] Hanya entri berstatus `active` yang dipakai dalam pencarian.
+- [ ] Audit log menyimpan perubahan publish dan versi entri.
+
+### 9.9 Operasional & Observability
+
+- Metrik: `kb_vector_search_latency_ms`, `kb_index_size`, `kb_chunks_count`.
+- Prosedur: VACUUM/ANALYZE berkala pada tabel `kb_chunks` dan `knowledge_entries`.
+- Backup: snapshot harian database; uji restore untuk konsistensi index.
+
+### 9.10 Alur Upload Teks (Detail)
+
+**Flow:**
+
+1. Admin memanggil `POST /kb/entries/upload-text` dengan header `Content-Type: text/plain` atau `text/markdown` dan menyertakan `title` (wajib), `category`/`tags` (opsional), serta `publish=true|false`.
+2. Sistem membuat `knowledge_entries` (status `draft` secara default).
+3. Sistem melakukan normalisasi teks dan memecah konten menjadi chunk (500–1000 karakter, overlap 100–200).
+4. Sistem menghasilkan embedding per chunk dan menyimpannya di `kb_chunks` dengan tipe `VECTOR(D)`.
+5. Jika `publish=true`: proses publish bersifat atomic (entry menjadi `active` setelah seluruh embedding tersimpan dan indeks tersedia).
+6. Untuk konten besar (mis. > 2MB), proses embedding dijalankan asinkron dan API mengembalikan `job_id` untuk pemantauan.
+
+**Acceptance Criteria:**
+
+- [ ] Upload teks berhasil membuat entri dengan `title` dan `content` yang tersimpan.
+- [ ] Normalisasi tidak menghilangkan struktur semantik penting (heading, list) pada Markdown.
+- [ ] Chunking dan embedding dilakukan sesuai parameter default; parameter dapat dikonfigurasi di `plan.md`.
+- [ ] Jika publish sinkron, entri `active` hanya setelah seluruh embedding tersedia dan index siap.
+- [ ] Jika publish asinkron, tersedia API untuk cek status job dan entri tetap `draft` hingga job selesai.
+
+### 9.11 SSE Streaming untuk AI Suggest
+
+**Tujuan:** Memberikan saran mitigasi secara bertahap sehingga pengguna memperoleh petunjuk awal lebih cepat sambil pencarian Top-K berlangsung.
+
+**Endpoint:** `GET /v1/ai/suggest/stream`
+
+**Headers (Server Response):**
+- `Content-Type: text/event-stream`
+- `Cache-Control: no-cache`
+- `Connection: keep-alive`
+
+**Params:**
+- `query` (string, wajib)
+- `filters` (object atau key-value optional: `category`, `tags`, `status`)
+- `top_k` (int, default 10)
+
+**Event Types & Payload (data berformat JSON):**
+- `event: init`
+  - `data: { queryId, topK, filters, startTime }`
+- `event: candidate`
+  - `data: { rank, score, entry_id, chunk_index, content_snippet, category, tags }`
+- `event: progress`
+  - `data: { retrievedCount, elapsed_ms }`
+- `event: end`
+  - `data: { totalCandidates, elapsed_ms }`
+- `event: error`
+  - `data: { code, message }`
+
+**Heartbeat:**
+- Kirim komentar SSE (`:heartbeat`) setiap ≤ 15 detik untuk menjaga koneksi tetap hidup.
+
+**Retry:**
+- Klien dapat menggunakan `retry: 3000` (3 detik) dan akan otomatis reconnect. Server harus idempotent terhadap reconnect (menggunakan `queryId`).
+
+**Security & Rate Limit:**
+- Autentikasi wajib (token/Session) dan CORS diizinkan hanya dari origin yang tepercaya.
+- Batasi rate pada endpoint stream (mis. 5 koneksi aktif per user) untuk mencegah resource exhaustion.
+
+**Acceptance Criteria (SSE):**
+- [ ] First event (`init`) terkirim ≤ 500ms setelah request.
+- [ ] Minimal 3 `candidate` events terkirim dengan `rank` berurutan sebelum `end`.
+- [ ] Heartbeat dikirim reguler dan koneksi tetap stabil pada idle ≥ 1 menit.
+- [ ] `error` event dikirim dengan kode yang jelas saat kegagalan terjadi (mis. invalid filters, rate limit).
+- [ ] Observabilitas: logging `queryId`, `events_count`, `first_event_ms`, dan `total_duration_ms`.

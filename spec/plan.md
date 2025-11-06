@@ -144,7 +144,7 @@ Setiap use case harus ringan, idempotent, dan diuji menggunakan table-driven tes
     * POST /v1/tickets/{id}/assign → assign ticket
     * POST /v1/tickets/{id}/resolve → resolve ticket
     * GET /v1/kb → list KB
-    * POST /v1/ai/suggest → return suggestion
+    * POST /v1/ai/suggest → return suggestion 
     * GET /v1/reports → metric report
 
 All endpoints must carry correlation-id and be secured via SSO/JWT.
