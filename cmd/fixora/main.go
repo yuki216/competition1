@@ -21,6 +21,7 @@ import (
 	"github.com/fixora/fixora/internal/usecase"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
+	"github.com/joho/godotenv"
 )
 
 // Version and build information
@@ -31,6 +32,11 @@ var (
 )
 
 func main() {
+	// Load .env file
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: Could not load .env file: %v", err)
+	}
+
 	// Parse command line flags
 	var (
 		version = flag.Bool("version", false, "Show version information")
