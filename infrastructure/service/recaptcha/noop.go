@@ -2,7 +2,8 @@ package recaptcha
 
 import (
 	"context"
-	"github.com/vobe/auth-service/infrastructure/service/logger"
+
+	"github.com/fixora/fixora/infrastructure/service/logger"
 )
 
 // noopRecaptchaService implements RecaptchaService as a no-op.

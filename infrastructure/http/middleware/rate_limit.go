@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vobe/auth-service/infrastructure/http/response"
-	"github.com/vobe/auth-service/infrastructure/service/logger"
-	"github.com/vobe/auth-service/application/port/inbound"
+	"github.com/fixora/fixora/application/port/inbound"
+	"github.com/fixora/fixora/infrastructure/http/response"
+	"github.com/fixora/fixora/infrastructure/service/logger"
 )
 
 type RateLimitMiddleware struct {
@@ -27,7 +27,7 @@ func (m *RateLimitMiddleware) RateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		clientIP := getClientIP(r)
-		
+
 		// Skip rate limiting if service is not available
 		if m.rateLimitService == nil {
 			next.ServeHTTP(w, r)
@@ -42,11 +42,11 @@ func (m *RateLimitMiddleware) RateLimit(next http.Handler) http.Handler {
 		switch {
 		case strings.Contains(r.URL.Path, "/login"):
 			key = fmt.Sprintf("login:ip:%s", clientIP)
-			limit = 10  // 10 login attempts per 15 minutes
+			limit = 10 // 10 login attempts per 15 minutes
 			window = 15 * time.Minute
 		case strings.Contains(r.URL.Path, "/refresh"):
 			key = fmt.Sprintf("refresh:ip:%s", clientIP)
-			limit = 30  // 30 refresh attempts per hour
+			limit = 30 // 30 refresh attempts per hour
 			window = 1 * time.Hour
 		default:
 			key = fmt.Sprintf("general:ip:%s", clientIP)

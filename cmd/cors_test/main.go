@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/vobe/auth-service/infrastructure/http/middleware"
+	"github.com/fixora/fixora/infrastructure/http/middleware"
 )
 
 func main() {

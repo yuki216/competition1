@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/vobe/auth-service/infrastructure/service/logger"
+	"github.com/fixora/fixora/infrastructure/service/logger"
 )
 
 // RecaptchaService mendefinisikan interface untuk reCAPTCHA validation

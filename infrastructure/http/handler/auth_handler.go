@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vobe/auth-service/application/port/inbound"
-	"github.com/vobe/auth-service/infrastructure/http/middleware"
-	"github.com/vobe/auth-service/infrastructure/http/response"
-	"github.com/vobe/auth-service/infrastructure/http/validator"
+	"github.com/fixora/fixora/application/port/inbound"
+	"github.com/fixora/fixora/infrastructure/http/middleware"
+	"github.com/fixora/fixora/infrastructure/http/response"
+	"github.com/fixora/fixora/infrastructure/http/validator"
 )
 
 type AuthHandler struct {
@@ -23,15 +23,15 @@ func NewAuthHandler(authUseCase inbound.AuthUseCase) *AuthHandler {
 }
 
 type LoginRequest struct {
-	Email        string `json:"email"`
-	Password     string `json:"password"`
-	RememberMe   bool   `json:"remember_me"`
+	Email          string `json:"email"`
+	Password       string `json:"password"`
+	RememberMe     bool   `json:"remember_me"`
 	RecaptchaToken string `json:"recaptcha_token"`
 }
 
 type LoginResponse struct {
-	AccessToken string `json:"access_token"`
-	ExpiresIn   int    `json:"expires_in"`
+	AccessToken string   `json:"access_token"`
+	ExpiresIn   int      `json:"expires_in"`
 	User        UserInfo `json:"user"`
 }
 
@@ -75,7 +75,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	// Get client IP
 	clientIP := getClientIP(r)
-	
+
 	// Create context with client IP
 	ctx := context.WithValue(r.Context(), "client_ip", clientIP)
 
@@ -167,7 +167,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	// Get refresh token from cookie or header
 	var refreshToken string
-	
+
 	// Try cookie first
 	if cookie, err := r.Cookie("refresh_token"); err == nil && cookie.Value != "" {
 		refreshToken = cookie.Value
@@ -205,48 +205,48 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodPost {
-        response.Error(w, http.StatusMethodNotAllowed, "Method not allowed")
-        return
-    }
+	if r.Method != http.MethodPost {
+		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
 
-    // Get user claims from access token via middleware
-    claims := middleware.GetUserClaims(r.Context())
-    if claims == nil || claims.UserID == "" {
-        response.Unauthorized(w, "Authorization header required")
-        return
-    }
+	// Get user claims from access token via middleware
+	claims := middleware.GetUserClaims(r.Context())
+	if claims == nil || claims.UserID == "" {
+		response.Unauthorized(w, "Authorization header required")
+		return
+	}
 
-    // Call use case with userID to revoke all refresh tokens for this user
-    logoutReq := inbound.LogoutRequest{ UserID: claims.UserID }
-    if err := h.authUseCase.Logout(r.Context(), logoutReq); err != nil {
-        // Map common errors
-        switch err.Error() {
-        case "token not found":
-            // For user-level revoke, this case is unlikely; still handle
-            response.Unauthorized(w, "Invalid refresh token")
-        case "access token required":
-            response.Unauthorized(w, "Authorization header required")
-        default:
-            response.InternalServerError(w, "Internal server error")
-        }
-        return
-    }
+	// Call use case with userID to revoke all refresh tokens for this user
+	logoutReq := inbound.LogoutRequest{UserID: claims.UserID}
+	if err := h.authUseCase.Logout(r.Context(), logoutReq); err != nil {
+		// Map common errors
+		switch err.Error() {
+		case "token not found":
+			// For user-level revoke, this case is unlikely; still handle
+			response.Unauthorized(w, "Invalid refresh token")
+		case "access token required":
+			response.Unauthorized(w, "Authorization header required")
+		default:
+			response.InternalServerError(w, "Internal server error")
+		}
+		return
+	}
 
-    // Clear refresh token cookie if present
-    http.SetCookie(w, &http.Cookie{
-        Name:     "refresh_token",
-        Value:    "",
-        Path:     "/v1/auth/refresh",
-        HttpOnly: true,
-        Secure:   true,
-        SameSite: http.SameSiteLaxMode,
-        MaxAge:   -1,
-    })
+	// Clear refresh token cookie if present
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		Path:     "/v1/auth/refresh",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
 
-    // Return 204 No Content
-    w.WriteHeader(http.StatusNoContent)
-    return
+	// Return 204 No Content
+	w.WriteHeader(http.StatusNoContent)
+	return
 }
 
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {

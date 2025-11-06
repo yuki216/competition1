@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vobe/auth-service/application/port/outbound"
-	"github.com/vobe/auth-service/infrastructure/http/response"
+	"github.com/fixora/fixora/application/port/outbound"
+	"github.com/fixora/fixora/infrastructure/http/response"
 )
 
 const (

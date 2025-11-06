@@ -2,25 +2,25 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
-	"crypto/sha256"
-	"encoding/hex"
 
-	"github.com/vobe/auth-service/application/port/outbound"
-	"github.com/vobe/auth-service/domain/entity"
+	"github.com/fixora/fixora/application/port/outbound"
+	"github.com/fixora/fixora/domain/entity"
 )
 
 type RefreshTokenRepositoryAdapter struct {
-	db *sql.DB
+	db   *sql.DB
 	salt string
 }
 
 func NewRefreshTokenRepositoryAdapter(db *sql.DB, salt string) outbound.RefreshTokenRepository {
 	return &RefreshTokenRepositoryAdapter{
-		db: db,
+		db:   db,
 		salt: salt,
 	}
 }

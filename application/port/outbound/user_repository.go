@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/vobe/auth-service/domain/entity"
+	"github.com/fixora/fixora/domain/entity"
 )
 
 var (
-	ErrUserNotFound = errors.New("user not found")
+	ErrUserNotFound      = errors.New("user not found")
 	ErrUserAlreadyExists = errors.New("user already exists")
 )
 

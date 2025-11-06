@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/vobe/auth-service/application/port/outbound"
-	"github.com/vobe/auth-service/domain/entity"
+	"github.com/fixora/fixora/application/port/outbound"
+	"github.com/fixora/fixora/domain/entity"
 )
 
 type UserRepositoryAdapter struct {
@@ -78,7 +78,7 @@ func (r *UserRepositoryAdapter) FindByID(ctx context.Context, id string) (*entit
 		&user.UpdatedAt,
 		&user.DeletedAt,
 	)
-	
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, outbound.ErrUserNotFound

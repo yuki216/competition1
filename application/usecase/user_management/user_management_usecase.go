@@ -3,16 +3,16 @@ package user_management
 import (
 	"context"
 
-	"github.com/vobe/auth-service/application/port/inbound"
-	"github.com/vobe/auth-service/application/port/outbound"
+	"github.com/fixora/fixora/application/port/inbound"
+	"github.com/fixora/fixora/application/port/outbound"
 )
 
 type UserManagementUseCaseImpl struct {
-	createUserUseCase   *CreateUserUseCase
-	updateUserUseCase   *UpdateUserUseCase
-	deleteUserUseCase   *DeleteUserUseCase
+	createUserUseCase    *CreateUserUseCase
+	updateUserUseCase    *UpdateUserUseCase
+	deleteUserUseCase    *DeleteUserUseCase
 	getUserDetailUseCase *GetUserDetailUseCase
-	listUsersUseCase    *ListUsersUseCase
+	listUsersUseCase     *ListUsersUseCase
 }
 
 func NewUserManagementUseCase(
@@ -20,11 +20,11 @@ func NewUserManagementUseCase(
 	passwordSvc outbound.PasswordService,
 ) inbound.UserManagementUseCase {
 	return &UserManagementUseCaseImpl{
-		createUserUseCase:   NewCreateUserUseCase(userRepo, passwordSvc),
-		updateUserUseCase:   NewUpdateUserUseCase(userRepo),
-		deleteUserUseCase:   NewDeleteUserUseCase(userRepo),
+		createUserUseCase:    NewCreateUserUseCase(userRepo, passwordSvc),
+		updateUserUseCase:    NewUpdateUserUseCase(userRepo),
+		deleteUserUseCase:    NewDeleteUserUseCase(userRepo),
 		getUserDetailUseCase: NewGetUserDetailUseCase(userRepo),
-		listUsersUseCase:    NewListUsersUseCase(userRepo),
+		listUsersUseCase:     NewListUsersUseCase(userRepo),
 	}
 }
 

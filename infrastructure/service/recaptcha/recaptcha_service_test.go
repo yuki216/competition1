@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fixora/fixora/infrastructure/service/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/vobe/auth-service/infrastructure/service/logger"
 )
 
 // MockHTTPClient untuk mocking HTTP calls

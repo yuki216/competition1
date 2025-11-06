@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vobe/auth-service/application/port/outbound"
+	"github.com/fixora/fixora/application/port/outbound"
 )
 
 type DeleteUserUseCase struct {

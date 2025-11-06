@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vobe/auth-service/infrastructure/config"
-	"github.com/vobe/auth-service/application/port/outbound"
+	"github.com/fixora/fixora/application/port/outbound"
+	"github.com/fixora/fixora/infrastructure/config"
 )
 
 func TestJWTService(t *testing.T) {
@@ -71,7 +71,7 @@ func TestJWTService(t *testing.T) {
 			AccessTokenTTL:  1, // 1 second
 			RefreshTokenTTL: 2592000,
 		}
-		
+
 		shortService, err := NewJWTService(shortCfg)
 		if err != nil {
 			t.Fatalf("Failed to create JWT service: %v", err)

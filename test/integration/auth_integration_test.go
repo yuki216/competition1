@@ -13,21 +13,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fixora/fixora/application/port/inbound"
+	"github.com/fixora/fixora/application/port/outbound"
+	"github.com/fixora/fixora/domain/entity"
+	"github.com/fixora/fixora/infrastructure/adapter/postgres"
+	"github.com/fixora/fixora/infrastructure/config"
+	"github.com/fixora/fixora/infrastructure/http/handler"
+	"github.com/fixora/fixora/infrastructure/http/middleware"
+	"github.com/fixora/fixora/infrastructure/http/response"
+	"github.com/fixora/fixora/infrastructure/persistence/usecase"
+	"github.com/fixora/fixora/infrastructure/service/jwt"
+	"github.com/fixora/fixora/infrastructure/service/logger"
+	"github.com/fixora/fixora/infrastructure/service/password"
+	"github.com/fixora/fixora/infrastructure/service/ratelimit"
+	"github.com/fixora/fixora/infrastructure/service/recaptcha"
 	"github.com/sirupsen/logrus"
-	"github.com/vobe/auth-service/application/port/inbound"
-	"github.com/vobe/auth-service/application/port/outbound"
-	"github.com/vobe/auth-service/domain/entity"
-	"github.com/vobe/auth-service/infrastructure/adapter/postgres"
-	"github.com/vobe/auth-service/infrastructure/config"
-	"github.com/vobe/auth-service/infrastructure/http/handler"
-	"github.com/vobe/auth-service/infrastructure/http/middleware"
-	"github.com/vobe/auth-service/infrastructure/http/response"
-	"github.com/vobe/auth-service/infrastructure/persistence/usecase"
-	"github.com/vobe/auth-service/infrastructure/service/jwt"
-	"github.com/vobe/auth-service/infrastructure/service/logger"
-	"github.com/vobe/auth-service/infrastructure/service/password"
-	"github.com/vobe/auth-service/infrastructure/service/ratelimit"
-	"github.com/vobe/auth-service/infrastructure/service/recaptcha"
 
 	_ "github.com/lib/pq"
 )
@@ -48,7 +48,7 @@ func setupAuthIntegrationTest(t *testing.T) *AuthIntegrationTestSuite {
 		DatabaseURL:      "postgres://postgres:postgres@localhost:5432/auth_service_test?sslmode=disable",
 		JWTSecret:        "test-secret-key",
 		JWTAlgorithm:     "HS256",
-		AccessTokenTTL:   15 * 60,  // 15 minutes in seconds
+		AccessTokenTTL:   15 * 60,           // 15 minutes in seconds
 		RefreshTokenTTL:  30 * 24 * 60 * 60, // 30 days in seconds
 		RefreshTokenSalt: "test-salt",
 	}
@@ -399,7 +399,6 @@ func TestLogoutIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	
 	tests := []struct {
 		name            string
 		authHeader      string
@@ -506,7 +505,6 @@ func TestMeIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	
 	tests := []struct {
 		name            string
 		authHeader      string

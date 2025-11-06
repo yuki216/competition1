@@ -15,17 +15,18 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/vobe/auth-service/application/port/inbound"
-	"github.com/vobe/auth-service/infrastructure/adapter/postgres"
-	"github.com/vobe/auth-service/infrastructure/config"
-	"github.com/vobe/auth-service/infrastructure/http/handler"
-	"github.com/vobe/auth-service/infrastructure/http/middleware"
-	"github.com/vobe/auth-service/infrastructure/persistence/usecase"
-	"github.com/vobe/auth-service/infrastructure/service/jwt"
-	"github.com/vobe/auth-service/infrastructure/service/logger"
-	"github.com/vobe/auth-service/infrastructure/service/password"
-	"github.com/vobe/auth-service/infrastructure/service/ratelimit"
-	"github.com/vobe/auth-service/infrastructure/service/recaptcha"
+	"github.com/fixora/fixora/application/port/inbound"
+	"github.com/fixora/fixora/application/usecase/user_management"
+	"github.com/fixora/fixora/infrastructure/adapter/postgres"
+	"github.com/fixora/fixora/infrastructure/config"
+	"github.com/fixora/fixora/infrastructure/http/handler"
+	"github.com/fixora/fixora/infrastructure/http/middleware"
+	"github.com/fixora/fixora/infrastructure/persistence/usecase"
+	"github.com/fixora/fixora/infrastructure/service/jwt"
+	"github.com/fixora/fixora/infrastructure/service/logger"
+	"github.com/fixora/fixora/infrastructure/service/password"
+	"github.com/fixora/fixora/infrastructure/service/ratelimit"
+	"github.com/fixora/fixora/infrastructure/service/recaptcha"
 )
 
 func main() {
@@ -152,12 +153,15 @@ func main() {
 		cfg.RefreshTokenTTL,
 	)
 
-	// Initialize handlers
-	authHandler := handler.NewAuthHandler(authUseCase)
+	userManagementUseCase := user_management.NewUserManagementUseCase(userRepo, passwordService)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(tokenService)
 	rateLimitMiddleware := middleware.NewRateLimitMiddleware(rateLimitService, structuredLogger)
+
+	// Initialize handlers
+	authHandler := handler.NewAuthHandler(authUseCase)
+	userManagementHandler := handler.NewUserManagementHandler(userManagementUseCase, authMiddleware)
 
 	// Setup routes
 	mux := http.NewServeMux()
@@ -165,6 +169,9 @@ func main() {
 	mux.Handle("/v1/auth/refresh", rateLimitMiddleware.RateLimit(http.HandlerFunc(authHandler.Refresh)))
 	mux.HandleFunc("/v1/auth/logout", authMiddleware.RequireAuth(authHandler.Logout))
 	mux.HandleFunc("/v1/auth/me", authMiddleware.RequireAuth(authHandler.Me))
+
+	// Register user management routes
+	userManagementHandler.RegisterRoutes(mux)
 
 	// Swagger UI & OpenAPI docs under /docs
 	mux.HandleFunc("/docs", func(w http.ResponseWriter, r *http.Request) {

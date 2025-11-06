@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/vobe/auth-service/domain/entity"
+	"github.com/fixora/fixora/domain/entity"
 )
 
 var (
-	ErrRefreshTokenNotFound = errors.New("refresh token not found")
+	ErrRefreshTokenNotFound      = errors.New("refresh token not found")
 	ErrRefreshTokenAlreadyExists = errors.New("refresh token already exists")
 )
 

@@ -6,16 +6,16 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fixora/fixora/application/port/inbound"
+	"github.com/fixora/fixora/infrastructure/http/middleware"
+	"github.com/fixora/fixora/infrastructure/http/response"
+	"github.com/fixora/fixora/infrastructure/http/validator"
 	"github.com/google/uuid"
-	"github.com/vobe/auth-service/application/port/inbound"
-	"github.com/vobe/auth-service/infrastructure/http/middleware"
-	"github.com/vobe/auth-service/infrastructure/http/response"
-	"github.com/vobe/auth-service/infrastructure/http/validator"
 )
 
 type UserManagementHandler struct {
 	userManagementUseCase inbound.UserManagementUseCase
-	authMiddleware       *middleware.AuthMiddleware
+	authMiddleware        *middleware.AuthMiddleware
 }
 
 func NewUserManagementHandler(
@@ -24,7 +24,7 @@ func NewUserManagementHandler(
 ) *UserManagementHandler {
 	return &UserManagementHandler{
 		userManagementUseCase: userManagementUseCase,
-		authMiddleware:       authMiddleware,
+		authMiddleware:        authMiddleware,
 	}
 }
 

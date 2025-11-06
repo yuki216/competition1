@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/vobe/auth-service/application/port/inbound"
-	"github.com/vobe/auth-service/application/port/outbound"
-	"github.com/vobe/auth-service/domain/entity"
-	"github.com/vobe/auth-service/domain/valueobject"
+	"github.com/fixora/fixora/application/port/inbound"
+	"github.com/fixora/fixora/application/port/outbound"
+	"github.com/fixora/fixora/domain/entity"
+	"github.com/fixora/fixora/domain/valueobject"
 )
 
 var (

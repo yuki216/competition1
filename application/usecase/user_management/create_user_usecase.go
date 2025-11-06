@@ -7,18 +7,18 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/vobe/auth-service/application/port/inbound"
-	"github.com/vobe/auth-service/application/port/outbound"
-	"github.com/vobe/auth-service/domain/entity"
+	"github.com/fixora/fixora/application/port/inbound"
+	"github.com/fixora/fixora/application/port/outbound"
+	"github.com/fixora/fixora/domain/entity"
 )
 
 var (
-	ErrInvalidName      = errors.New("invalid name format")
-	ErrInvalidEmail     = errors.New("invalid email format")
-	ErrInvalidPassword  = errors.New("password must be at least 8 characters")
-	ErrInvalidRole      = errors.New("invalid role")
+	ErrInvalidName        = errors.New("invalid name format")
+	ErrInvalidEmail       = errors.New("invalid email format")
+	ErrInvalidPassword    = errors.New("password must be at least 8 characters")
+	ErrInvalidRole        = errors.New("invalid role")
 	ErrEmailAlreadyExists = errors.New("email already exists")
-	ErrUnauthorized    = errors.New("unauthorized: admin role required")
+	ErrUnauthorized       = errors.New("unauthorized: admin role required")
 )
 
 type CreateUserUseCase struct {

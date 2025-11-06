@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vobe/auth-service/application/port/inbound"
-	"github.com/vobe/auth-service/application/port/outbound"
-	"github.com/vobe/auth-service/domain/entity"
-	"github.com/vobe/auth-service/infrastructure/service/logger"
+	"github.com/fixora/fixora/application/port/inbound"
+	"github.com/fixora/fixora/application/port/outbound"
+	"github.com/fixora/fixora/domain/entity"
+	"github.com/fixora/fixora/infrastructure/service/logger"
 )
 
 // Mock implementations

@@ -4,14 +4,13 @@ import (
 	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
-	"github.com/vobe/auth-service/application/port/inbound"
 )
 
 type BcryptPasswordService struct {
 	cost int
 }
 
-func NewBcryptPasswordService(cost int) inbound.PasswordService {
+func NewBcryptPasswordService(cost int) *BcryptPasswordService {
 	if cost == 0 {
 		cost = bcrypt.DefaultCost
 	}
@@ -31,6 +30,14 @@ func (s *BcryptPasswordService) HashPassword(password string) (string, error) {
 	}
 
 	return string(hashedPassword), nil
+}
+
+func (s *BcryptPasswordService) ComparePassword(hashedPassword, password string) error {
+	if hashedPassword == "" || password == "" {
+		return fmt.Errorf("passwords cannot be empty")
+	}
+
+	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }
 
 func (s *BcryptPasswordService) VerifyPassword(password, hash string) (bool, error) {

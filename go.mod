@@ -1,4 +1,4 @@
-module github.com/vobe/auth-service
+module github.com/fixora/fixora
 
 go 1.24.7
 

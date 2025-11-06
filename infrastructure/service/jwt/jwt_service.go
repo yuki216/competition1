@@ -8,16 +8,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fixora/fixora/application/port/outbound"
+	"github.com/fixora/fixora/infrastructure/config"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/vobe/auth-service/application/port/outbound"
-	"github.com/vobe/auth-service/infrastructure/config"
 )
 
 type JWTService struct {
-	config        *config.Config
-	privateKey    *rsa.PrivateKey
-	publicKey     *rsa.PublicKey
-	hmacSecret    []byte
+	config     *config.Config
+	privateKey *rsa.PrivateKey
+	publicKey  *rsa.PublicKey
+	hmacSecret []byte
 }
 
 var (
@@ -48,10 +48,10 @@ func (s *JWTService) GenerateAccessToken(claims outbound.TokenClaims) (string, e
 		"user_id": claims.UserID,
 		"email":   claims.Email,
 		"role":    claims.Role,
-		"exp":     time.Now().Add(time.Duration(s.config.AccessTokenTTL) * time.Second).Unix(),
+		"exp":     time.Now().Add(s.config.AccessTokenTTL).Unix(),
 		"iat":     time.Now().Unix(),
 		"type":    "access",
-		}
+	}
 
 	var token *jwt.Token
 	if s.config.JWTAlgorithm == "HS256" {
@@ -81,7 +81,7 @@ func (s *JWTService) GenerateRefreshToken() (string, error) {
 
 func (s *JWTService) ValidateAccessToken(tokenString string) (*outbound.TokenClaims, error) {
 	var claims jwt.MapClaims
-	
+
 	if s.config.JWTAlgorithm == "HS256" {
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {

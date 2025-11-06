@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fixora/fixora/application/port/inbound"
+	"github.com/fixora/fixora/infrastructure/config"
+	"github.com/fixora/fixora/infrastructure/http/handler"
+	"github.com/fixora/fixora/infrastructure/http/middleware"
+	"github.com/fixora/fixora/infrastructure/http/response"
+	"github.com/fixora/fixora/infrastructure/service/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"github.com/vobe/auth-service/application/port/inbound"
-	"github.com/vobe/auth-service/infrastructure/config"
-	"github.com/vobe/auth-service/infrastructure/http/handler"
-	"github.com/vobe/auth-service/infrastructure/http/middleware"
-	"github.com/vobe/auth-service/infrastructure/http/response"
-	"github.com/vobe/auth-service/infrastructure/service/logger"
 )
 
 type Iteration3AcceptanceTestSuite struct {
@@ -40,11 +40,11 @@ func (suite *Iteration3AcceptanceTestSuite) SetupSuite() {
 		RefreshTokenTTL:  30 * 24 * time.Hour,
 		RefreshTokenSalt: "test-salt",
 		RecaptchaEnabled: true,
-		RecaptchaSecret:   "6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe", // Test secret
-		RecaptchaSiteKey:  "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI", // Test site key
-		RecaptchaTimeout:  5 * time.Second,
-		RecaptchaSkip:     false,
-		RateLimitEnabled:   true,
+		RecaptchaSecret:  "6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe", // Test secret
+		RecaptchaSiteKey: "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI", // Test site key
+		RecaptchaTimeout: 5 * time.Second,
+		RecaptchaSkip:    false,
+		RateLimitEnabled: true,
 		RedisURL:         "redis://localhost:6379/1",
 		LogFormat:        "json",
 		LogLevel:         "info",
@@ -77,7 +77,7 @@ func (suite *Iteration3AcceptanceTestSuite) SetupSuite() {
 	authUseCase := &mockAuthUseCase{
 		recaptchaService: recaptchaService,
 		rateLimitService: suite.rlService,
-		logger:          suite.structuredLogger,
+		logger:           suite.structuredLogger,
 	}
 
 	// Initialize handlers
@@ -94,7 +94,7 @@ func (suite *Iteration3AcceptanceTestSuite) SetupSuite() {
 	router.HandleFunc("/v1/auth/me", suite.authHandler.Me)
 
 	finalHandler := middleware.CorrelationIDMiddleware(router)
-	
+
 	suite.server = httptest.NewServer(finalHandler)
 }
 
@@ -106,7 +106,9 @@ func (suite *Iteration3AcceptanceTestSuite) TearDownSuite() {
 
 // Test 1: reCAPTCHA Integration
 func (suite *Iteration3AcceptanceTestSuite) TestRecaptchaIntegration() {
-	if suite.rlService != nil { suite.rlService.Reset() }
+	if suite.rlService != nil {
+		suite.rlService.Reset()
+	}
 	tests := []struct {
 		name           string
 		recaptchaToken string
@@ -160,7 +162,7 @@ func (suite *Iteration3AcceptanceTestSuite) TestRecaptchaIntegration() {
 
 			if tt.expectedStatus == http.StatusOK {
 				assert.Equal(suite.T(), tt.expectedStatus, resp.StatusCode)
-				
+
 				var result response.Envelope
 				err := json.NewDecoder(resp.Body).Decode(&result)
 				suite.NoError(err)
@@ -179,7 +181,9 @@ func (suite *Iteration3AcceptanceTestSuite) TestRecaptchaIntegration() {
 // Test 2: Rate Limiting
 func (suite *Iteration3AcceptanceTestSuite) TestRateLimiting() {
 	// Reset limiter state
-	if suite.rlService != nil { suite.rlService.Reset() }
+	if suite.rlService != nil {
+		suite.rlService.Reset()
+	}
 	// Test login rate limiting
 	suite.Run("Login Rate Limiting", func() {
 		for i := 0; i < 15; i++ {
@@ -214,8 +218,8 @@ func (suite *Iteration3AcceptanceTestSuite) TestStructuredLogging() {
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := http.DefaultClient.Do(req)
-			suite.NoError(err)
-			defer resp.Body.Close()
+		suite.NoError(err)
+		defer resp.Body.Close()
 
 		// Should generate correlation ID if not provided
 		correlationID := resp.Header.Get("X-Correlation-ID")
@@ -224,7 +228,7 @@ func (suite *Iteration3AcceptanceTestSuite) TestStructuredLogging() {
 
 	suite.Run("Correlation ID Preservation", func() {
 		providedCorrelationID := "test-correlation-12345"
-		
+
 		req, _ := http.NewRequest("POST", suite.server.URL+"/v1/auth/login", bytes.NewBuffer([]byte(`{"email":"test@example.com","password":"password123"}`)))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Correlation-ID", providedCorrelationID)
@@ -241,7 +245,9 @@ func (suite *Iteration3AcceptanceTestSuite) TestStructuredLogging() {
 
 // Test 4: Security Event Logging
 func (suite *Iteration3AcceptanceTestSuite) TestSecurityEventLogging() {
-	if suite.rlService != nil { suite.rlService.Reset() }
+	if suite.rlService != nil {
+		suite.rlService.Reset()
+	}
 	suite.Run("Failed Login Attempts", func() {
 		payload := map[string]interface{}{
 			"email":    "suspicious@example.com",
@@ -262,10 +268,12 @@ func (suite *Iteration3AcceptanceTestSuite) TestSecurityEventLogging() {
 
 // Test 5: Performance Monitoring
 func (suite *Iteration3AcceptanceTestSuite) TestPerformanceMonitoring() {
-	if suite.rlService != nil { suite.rlService.Reset() }
+	if suite.rlService != nil {
+		suite.rlService.Reset()
+	}
 	suite.Run("Response Time Measurement", func() {
 		start := time.Now()
-		
+
 		payload := map[string]interface{}{
 			"email":    "test@example.com",
 			"password": "password123",
@@ -280,7 +288,7 @@ func (suite *Iteration3AcceptanceTestSuite) TestPerformanceMonitoring() {
 		defer resp.Body.Close()
 
 		duration := time.Since(start)
-		
+
 		// Response should be reasonably fast (less than 1 second)
 		assert.Less(suite.T(), duration, 1*time.Second)
 		assert.Equal(suite.T(), http.StatusOK, resp.StatusCode)
@@ -334,13 +342,19 @@ func (suite *Iteration3AcceptanceTestSuite) TestErrorCatalog() {
 
 // In-memory RecaptchaService
 
-type memoryRecaptchaService struct { enabled bool }
+type memoryRecaptchaService struct{ enabled bool }
 
-func NewMemoryRecaptchaService(enabled bool) inbound.RecaptchaService { return &memoryRecaptchaService{enabled: enabled} }
+func NewMemoryRecaptchaService(enabled bool) inbound.RecaptchaService {
+	return &memoryRecaptchaService{enabled: enabled}
+}
 
 func (m *memoryRecaptchaService) VerifyToken(ctx context.Context, token string) (bool, error) {
-	if token == "valid-test-token" { return true, nil }
-	if token == "invalid-token-format" { return false, fmt.Errorf("reCAPTCHA token invalid") }
+	if token == "valid-test-token" {
+		return true, nil
+	}
+	if token == "invalid-token-format" {
+		return false, fmt.Errorf("reCAPTCHA token invalid")
+	}
 	return true, nil
 }
 func (m *memoryRecaptchaService) IsEnabled() bool { return m.enabled }
@@ -357,40 +371,60 @@ func (m *memoryRateLimitService) Reset() {
 	m.blockedUntil = make(map[string]time.Time)
 }
 
-func NewMemoryRateLimitService() inbound.RateLimitService { return &memoryRateLimitService{attempts: make(map[string]int), blockedUntil: make(map[string]time.Time)} }
+func NewMemoryRateLimitService() inbound.RateLimitService {
+	return &memoryRateLimitService{attempts: make(map[string]int), blockedUntil: make(map[string]time.Time)}
+}
 
 func (m *memoryRateLimitService) CheckLimit(ctx context.Context, key string, limit int, window time.Duration) (bool, error) {
 	m.attempts[key] = m.attempts[key] + 1
 	return m.attempts[key] <= limit, nil
 }
-func (m *memoryRateLimitService) Increment(ctx context.Context, key string, window time.Duration) error { m.attempts[key] = m.attempts[key] + 1; return nil }
-func (m *memoryRateLimitService) Block(ctx context.Context, key string, duration time.Duration, reason string) error { m.blockedUntil[key] = time.Now().Add(duration); return nil }
-func (m *memoryRateLimitService) IsBlocked(ctx context.Context, key string) (bool, error) { until, ok := m.blockedUntil[key]; if !ok { return false, nil }; return time.Now().Before(until), nil }
-func (m *memoryRateLimitService) GetAttempts(ctx context.Context, key string) (int, error) { return m.attempts[key], nil }
+func (m *memoryRateLimitService) Increment(ctx context.Context, key string, window time.Duration) error {
+	m.attempts[key] = m.attempts[key] + 1
+	return nil
+}
+func (m *memoryRateLimitService) Block(ctx context.Context, key string, duration time.Duration, reason string) error {
+	m.blockedUntil[key] = time.Now().Add(duration)
+	return nil
+}
+func (m *memoryRateLimitService) IsBlocked(ctx context.Context, key string) (bool, error) {
+	until, ok := m.blockedUntil[key]
+	if !ok {
+		return false, nil
+	}
+	return time.Now().Before(until), nil
+}
+func (m *memoryRateLimitService) GetAttempts(ctx context.Context, key string) (int, error) {
+	return m.attempts[key], nil
+}
 
 // Mock UseCase
 
 type mockAuthUseCase struct {
 	recaptchaService inbound.RecaptchaService
 	rateLimitService inbound.RateLimitService
-	logger          logger.Logger
+	logger           logger.Logger
 }
 
 func (m *mockAuthUseCase) Login(ctx context.Context, req inbound.LoginRequest) (*inbound.LoginResponse, error) {
 	// Validate reCAPTCHA only if token provided and service enabled
 	if m.recaptchaService != nil && m.recaptchaService.IsEnabled() && req.RecaptchaToken != "" {
 		valid, err := m.recaptchaService.VerifyToken(ctx, req.RecaptchaToken)
-		if err != nil { return nil, fmt.Errorf("reCAPTCHA verification failed: %w", err) }
-		if !valid { return nil, fmt.Errorf("reCAPTCHA verification failed: invalid token") }
+		if err != nil {
+			return nil, fmt.Errorf("reCAPTCHA verification failed: %w", err)
+		}
+		if !valid {
+			return nil, fmt.Errorf("reCAPTCHA verification failed: invalid token")
+		}
 	}
 	if req.Email == "test@example.com" && req.Password == "password123" {
-		return &inbound.LoginResponse{ AccessToken: "mock-access-token", RefreshToken: "mock-refresh-token", ExpiresIn: 900 }, nil
+		return &inbound.LoginResponse{AccessToken: "mock-access-token", RefreshToken: "mock-refresh-token", ExpiresIn: 900}, nil
 	}
 	return nil, fmt.Errorf("Invalid credentials")
 }
 
 func (m *mockAuthUseCase) Refresh(ctx context.Context, req inbound.RefreshRequest) (*inbound.RefreshResponse, error) {
-	return &inbound.RefreshResponse{ AccessToken: "mock-new-access-token", ExpiresIn: 900 }, nil
+	return &inbound.RefreshResponse{AccessToken: "mock-new-access-token", ExpiresIn: 900}, nil
 }
 
 func (m *mockAuthUseCase) Logout(ctx context.Context, req inbound.LogoutRequest) error {

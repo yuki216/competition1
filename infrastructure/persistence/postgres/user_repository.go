@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/vobe/auth-service/application/port/outbound"
-	"github.com/vobe/auth-service/domain/entity"
+	"github.com/fixora/fixora/application/port/outbound"
+	"github.com/fixora/fixora/domain/entity"
 )
 
 type userRepository struct {

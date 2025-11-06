@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fixora/fixora/application/port/inbound"
+	"github.com/fixora/fixora/application/port/outbound"
+	"github.com/fixora/fixora/domain/entity"
+	"github.com/fixora/fixora/infrastructure/service/logger"
 	"github.com/google/uuid"
-	"github.com/vobe/auth-service/application/port/inbound"
-	"github.com/vobe/auth-service/application/port/outbound"
-	"github.com/vobe/auth-service/domain/entity"
-	"github.com/vobe/auth-service/infrastructure/service/logger"
 )
 
 type AuthUseCase struct {
@@ -105,7 +105,7 @@ func (uc *AuthUseCase) Login(ctx context.Context, req inbound.LoginRequest) (*in
 		start := time.Now()
 		valid, err := uc.recaptchaService.VerifyToken(ctx, req.RecaptchaToken)
 		duration := time.Since(start)
-		
+
 		logger.LogPerformance(ctx, uc.logger, "recaptcha_verification", duration, map[string]interface{}{
 			"email": req.Email,
 		})
@@ -144,6 +144,14 @@ func (uc *AuthUseCase) Login(ctx context.Context, req inbound.LoginRequest) (*in
 		return nil, fmt.Errorf("Failed to find user: %w", err)
 	}
 
+	// Additional nil check for safety
+	if user == nil {
+		uc.logger.Error(ctx, "User returned as nil", nil, map[string]interface{}{
+			"email": req.Email,
+		})
+		return nil, fmt.Errorf("Invalid credentials")
+	}
+
 	// Check user rate limiting
 	if uc.rateLimitService != nil {
 		isUserBlocked, err := uc.rateLimitService.IsBlocked(ctx, fmt.Sprintf("user:%s", user.ID))
@@ -165,7 +173,7 @@ func (uc *AuthUseCase) Login(ctx context.Context, req inbound.LoginRequest) (*in
 	start := time.Now()
 	isValid, err := uc.passwordService.VerifyPassword(req.Password, user.Password)
 	duration := time.Since(start)
-	
+
 	logger.LogPerformance(ctx, uc.logger, "password_verification", duration, map[string]interface{}{
 		"user_id": user.ID,
 	})
@@ -190,9 +198,9 @@ func (uc *AuthUseCase) Login(ctx context.Context, req inbound.LoginRequest) (*in
 
 	// Generate tokens
 	start = time.Now()
-	accessToken, err := uc.tokenService.GenerateAccessToken(outbound.TokenClaims{UserID: user.ID, Email: user.Email})
+	accessToken, err := uc.tokenService.GenerateAccessToken(outbound.TokenClaims{UserID: user.ID, Email: user.Email, Role: user.Role})
 	duration = time.Since(start)
-	
+
 	logger.LogPerformance(ctx, uc.logger, "access_token_generation", duration, map[string]interface{}{
 		"user_id": user.ID,
 	})
@@ -252,8 +260,8 @@ func (uc *AuthUseCase) Login(ctx context.Context, req inbound.LoginRequest) (*in
 	}
 
 	logger.LogAuthEvent(ctx, uc.logger, "login_successful", user.ID, ip, true, map[string]interface{}{
-		"email": req.Email,
-		"remember_me": req.RememberMe,
+		"email":               req.Email,
+		"remember_me":         req.RememberMe,
 		"refresh_ttl_seconds": int(refreshTTL.Seconds()),
 	})
 
@@ -324,7 +332,7 @@ func (uc *AuthUseCase) Refresh(ctx context.Context, req inbound.RefreshRequest) 
 	}
 
 	// Generate new tokens
-	accessToken, err := uc.tokenService.GenerateAccessToken(outbound.TokenClaims{UserID: user.ID, Email: user.Email})
+	accessToken, err := uc.tokenService.GenerateAccessToken(outbound.TokenClaims{UserID: user.ID, Email: user.Email, Role: user.Role})
 	if err != nil {
 		uc.logger.Error(ctx, "Failed to generate access token", err, map[string]interface{}{
 			"user_id": user.ID,
