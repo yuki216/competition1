@@ -1,32 +1,40 @@
 package main
 
 import (
-	"context"
-	"database/sql"
-	"fmt"
-	"log"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
+    "context"
+    "database/sql"
+    "fmt"
+    "log"
+    "net/http"
+    "os"
+    "strconv"
+    "os/signal"
+    "syscall"
+    "time"
 
-	_ "github.com/lib/pq"
+    _ "github.com/lib/pq"
 
-	"github.com/sirupsen/logrus"
+    "github.com/sirupsen/logrus"
+    "github.com/gorilla/mux"
 
-	"github.com/fixora/fixora/application/port/inbound"
-	"github.com/fixora/fixora/application/usecase/user_management"
-	"github.com/fixora/fixora/infrastructure/adapter/postgres"
-	"github.com/fixora/fixora/infrastructure/config"
-	"github.com/fixora/fixora/infrastructure/http/handler"
-	"github.com/fixora/fixora/infrastructure/http/middleware"
-	"github.com/fixora/fixora/infrastructure/persistence/usecase"
-	"github.com/fixora/fixora/infrastructure/service/jwt"
-	"github.com/fixora/fixora/infrastructure/service/logger"
-	"github.com/fixora/fixora/infrastructure/service/password"
-	"github.com/fixora/fixora/infrastructure/service/ratelimit"
-	"github.com/fixora/fixora/infrastructure/service/recaptcha"
+    "github.com/fixora/fixora/application/port/inbound"
+    "github.com/fixora/fixora/application/usecase/user_management"
+    "github.com/fixora/fixora/infrastructure/adapter/postgres"
+    "github.com/fixora/fixora/infrastructure/config"
+    "github.com/fixora/fixora/infrastructure/http/handler"
+    "github.com/fixora/fixora/infrastructure/http/middleware"
+    "github.com/fixora/fixora/infrastructure/persistence/usecase"
+    "github.com/fixora/fixora/infrastructure/service/jwt"
+    "github.com/fixora/fixora/infrastructure/service/logger"
+    "github.com/fixora/fixora/infrastructure/service/password"
+    "github.com/fixora/fixora/infrastructure/service/ratelimit"
+    "github.com/fixora/fixora/infrastructure/service/recaptcha"
+
+    aiadapter "github.com/fixora/fixora/internal/adapter/ai"
+    pers "github.com/fixora/fixora/internal/adapter/persistence"
+    aihttp "github.com/fixora/fixora/internal/adapter/http"
+    aiports "github.com/fixora/fixora/internal/ports"
+    aiusecase "github.com/fixora/fixora/internal/usecase"
 )
 
 func main() {
@@ -163,41 +171,84 @@ func main() {
 	authHandler := handler.NewAuthHandler(authUseCase)
 	userManagementHandler := handler.NewUserManagementHandler(userManagementUseCase, authMiddleware)
 
-	// Setup routes
-	mux := http.NewServeMux()
-	mux.Handle("/v1/auth/login", rateLimitMiddleware.RateLimit(http.HandlerFunc(authHandler.Login)))
-	mux.Handle("/v1/auth/refresh", rateLimitMiddleware.RateLimit(http.HandlerFunc(authHandler.Refresh)))
-	mux.HandleFunc("/v1/auth/logout", authMiddleware.RequireAuth(authHandler.Logout))
-	mux.HandleFunc("/v1/auth/me", authMiddleware.RequireAuth(authHandler.Me))
+    // Setup routes for auth/admin using ServeMux
+    serveMux := http.NewServeMux()
+    serveMux.Handle("/v1/auth/login", rateLimitMiddleware.RateLimit(http.HandlerFunc(authHandler.Login)))
+    serveMux.Handle("/v1/auth/refresh", rateLimitMiddleware.RateLimit(http.HandlerFunc(authHandler.Refresh)))
+    serveMux.HandleFunc("/v1/auth/logout", authMiddleware.RequireAuth(authHandler.Logout))
+    serveMux.HandleFunc("/v1/auth/me", authMiddleware.RequireAuth(authHandler.Me))
 
-	// Register user management routes
-	userManagementHandler.RegisterRoutes(mux)
+    // Register user management routes (RequireAdmin middleware wraps internal handlers)
+    userManagementHandler.RegisterRoutes(serveMux)
 
-	// Swagger UI & OpenAPI docs under /docs
-	mux.HandleFunc("/docs", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "api/swagger-ui.html")
-	})
-	mux.Handle("/docs/", http.StripPrefix("/docs/", http.FileServer(http.Dir("api"))))
+    // Swagger UI & OpenAPI docs under /docs
+    serveMux.HandleFunc("/docs", func(w http.ResponseWriter, r *http.Request) {
+        http.ServeFile(w, r, "api/swagger-ui.html")
+    })
+    serveMux.Handle("/docs/", http.StripPrefix("/docs/", http.FileServer(http.Dir("api"))))
 
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{"status":"healthy"}`)
-	})
+    serveMux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusOK)
+        fmt.Fprint(w, `{"status":"healthy"}`)
+    })
+
+    // =========================
+    // Integrasi AI Fixora ke server utama
+    // =========================
+    aiCfg := aiports.DefaultAIConfig()
+    if v := os.Getenv("AI_PROVIDER"); v != "" {
+        aiCfg.Provider = v
+    }
+    if v := os.Getenv("OPENAI_API_KEY"); v != "" {
+        aiCfg.APIKey = v
+    }
+    if v := os.Getenv("AI_EMBEDDING_DIM"); v != "" {
+        if dim, err := strconv.Atoi(v); err == nil {
+            aiCfg.EmbeddingDim = dim
+        }
+    }
+
+    var aiFactory aiports.AIProviderFactory
+    if aiCfg.Provider == "openai" && aiCfg.APIKey != "" {
+        aiFactory = aiadapter.NewOpenAIAdapter(aiCfg)
+        structuredLogger.Info(ctx, "AI provider initialized", map[string]interface{}{"provider": "openai"})
+    } else {
+        aiFactory = aiadapter.NewMockAIProviderFactory(aiCfg)
+        structuredLogger.Info(ctx, "AI provider initialized", map[string]interface{}{"provider": "mock"})
+    }
+
+    aiSuggestion := aiFactory.Suggestion()
+    aiEmbeddings := aiFactory.Embeddings()
+    aiTraining := aiFactory.Training()
+
+    // Repositori internal untuk AI & Ticket
+    knowledgeRepo := pers.NewPostgresKnowledgeRepository(db, aiEmbeddings)
+    ticketRepo := pers.NewPostgresTicketRepository(db)
+
+    // UseCase AI
+    aiUC := aiusecase.NewAIUseCase(aiSuggestion, aiEmbeddings, knowledgeRepo, ticketRepo, aiTraining)
+    aiHandler := aihttp.NewAIHandler(aiUC)
+
+    // Gunakan Gorilla Mux untuk rute AI, dan delegasikan lainnya ke ServeMux
+    router := mux.NewRouter()
+    aiHandler.RegisterRoutes(router)
+    // Delegasikan sisa rute ke ServeMux
+    router.PathPrefix("/").Handler(serveMux)
 
 	// Create server
 	// Compose middleware: CorrelationID then CORS (if enabled)
-	handler := middleware.CorrelationIDMiddleware(mux)
-	if cfg.CORSEnabled && len(cfg.CORSAllowedOrigins) > 0 {
-		handler = middleware.CORSMiddleware(handler, cfg.CORSAllowedOrigins, cfg.CORSAllowCredentials)
-	}
-	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%s", cfg.ServerHost, cfg.ServerPort),
-		Handler:      handler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
+    handler := middleware.CorrelationIDMiddleware(router)
+    if cfg.CORSEnabled && len(cfg.CORSAllowedOrigins) > 0 {
+        handler = middleware.CORSMiddleware(handler, cfg.CORSAllowedOrigins, cfg.CORSAllowCredentials)
+    }
+    server := &http.Server{
+        Addr:         fmt.Sprintf("%s:%s", cfg.ServerHost, cfg.ServerPort),
+        Handler:      handler,
+        ReadTimeout:  15 * time.Second,
+        WriteTimeout: 15 * time.Second,
+        IdleTimeout:  60 * time.Second,
+    }
 
 	// Start server in goroutine
 	go func() {
