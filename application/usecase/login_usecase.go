@@ -68,6 +68,7 @@ func (uc *LoginUseCase) Login(ctx context.Context, req inbound.LoginRequest) (*i
 	accessToken, err := uc.tokenService.GenerateAccessToken(outbound.TokenClaims{
 		UserID: user.ID,
 		Email:  user.Email,
+		Role:   user.Role,
 	})
 	if err != nil {
 		return nil, err
@@ -109,6 +110,11 @@ func (uc *LoginUseCase) Login(ctx context.Context, req inbound.LoginRequest) (*i
 		RefreshToken:     refreshToken,
 		ExpiresIn:        int(uc.accessTokenTTL.Seconds()),
 		RefreshExpiresIn: int(refreshTTL.Seconds()),
+		User: inbound.MeResponse{
+			ID:    user.ID,
+			Email: user.Email,
+			Role:  user.Role,
+		},
 	}, nil
 }
 

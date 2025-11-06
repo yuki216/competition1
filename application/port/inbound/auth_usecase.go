@@ -12,10 +12,11 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	AccessToken      string `json:"access_token"`
-	RefreshToken     string `json:"refresh_token"`
-	ExpiresIn        int    `json:"expires_in"`
-	RefreshExpiresIn int    // seconds until refresh token expiry (for cookie TTL)
+	AccessToken      string     `json:"access_token"`
+	RefreshToken     string     `json:"refresh_token"`
+	ExpiresIn        int        `json:"expires_in"`
+	RefreshExpiresIn int        // seconds until refresh token expiry (for cookie TTL)
+	User             MeResponse `json:"user"`
 }
 
 type RefreshRequest struct {
@@ -35,6 +36,7 @@ type LogoutRequest struct {
 type MeResponse struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
+	Role  string `json:"role"`
 }
 
 type AuthUseCase interface {

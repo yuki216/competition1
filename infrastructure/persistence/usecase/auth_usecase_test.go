@@ -134,7 +134,9 @@ func (m *mockPasswordService) VerifyPassword(password, hash string) (bool, error
 
 type mockRecaptchaService struct{ enabled bool }
 
-func (m *mockRecaptchaService) VerifyToken(ctx context.Context, token string) (bool, error) { return true, nil }
+func (m *mockRecaptchaService) VerifyToken(ctx context.Context, token string) (bool, error) {
+	return true, nil
+}
 func (m *mockRecaptchaService) IsEnabled() bool { return m.enabled }
 
 type mockRateLimitService struct{}
@@ -142,22 +144,29 @@ type mockRateLimitService struct{}
 func (m *mockRateLimitService) CheckLimit(ctx context.Context, key string, limit int, window time.Duration) (bool, error) {
 	return true, nil
 }
-func (m *mockRateLimitService) Increment(ctx context.Context, key string, window time.Duration) error { return nil }
+func (m *mockRateLimitService) Increment(ctx context.Context, key string, window time.Duration) error {
+	return nil
+}
 func (m *mockRateLimitService) Block(ctx context.Context, key string, duration time.Duration, reason string) error {
 	return nil
 }
-func (m *mockRateLimitService) IsBlocked(ctx context.Context, key string) (bool, error) { return false, nil }
-func (m *mockRateLimitService) GetAttempts(ctx context.Context, key string) (int, error) { return 0, nil }
+func (m *mockRateLimitService) IsBlocked(ctx context.Context, key string) (bool, error) {
+	return false, nil
+}
+func (m *mockRateLimitService) GetAttempts(ctx context.Context, key string) (int, error) {
+	return 0, nil
+}
 
 // Minimal no-op logger
 
 type testLogger struct{}
 
-func (l *testLogger) Info(ctx context.Context, message string, fields map[string]interface{})                 {}
-func (l *testLogger) Error(ctx context.Context, message string, err error, fields map[string]interface{})   {}
-func (l *testLogger) Warn(ctx context.Context, message string, fields map[string]interface{})               {}
-func (l *testLogger) Debug(ctx context.Context, message string, fields map[string]interface{})              {}
-func (l *testLogger) WithFields(fields map[string]interface{}) logger.Logger { return l }
+func (l *testLogger) Info(ctx context.Context, message string, fields map[string]interface{}) {}
+func (l *testLogger) Error(ctx context.Context, message string, err error, fields map[string]interface{}) {
+}
+func (l *testLogger) Warn(ctx context.Context, message string, fields map[string]interface{})  {}
+func (l *testLogger) Debug(ctx context.Context, message string, fields map[string]interface{}) {}
+func (l *testLogger) WithFields(fields map[string]interface{}) logger.Logger                   { return l }
 
 func TestAuthUseCase(t *testing.T) {
 	ctx := context.Background()
@@ -182,7 +191,7 @@ func TestAuthUseCase(t *testing.T) {
 	)
 
 	// Create test user
-	testUser := entity.NewUser("user123", "test@example.com", "hashed-password123")
+	testUser := entity.NewUser("user123", "test@example.com", "hashed-password123", "")
 	if err := userRepo.Create(ctx, testUser); err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}

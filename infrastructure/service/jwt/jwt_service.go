@@ -46,6 +46,8 @@ func NewJWTService(cfg *config.Config) (*JWTService, error) {
 func (s *JWTService) GenerateAccessToken(claims outbound.TokenClaims) (string, error) {
 	tokenClaims := jwt.MapClaims{
 		"user_id": claims.UserID,
+		"email":   claims.Email,
+		"role":    claims.Role,
 		"exp":     time.Now().Add(s.config.AccessTokenTTL).Unix(),
 		"iat":     time.Now().Unix(),
 		"type":    "access",
@@ -111,6 +113,16 @@ func (s *JWTService) ValidateAccessToken(tokenString string) (*outbound.TokenCla
 		return nil, ErrInvalidToken
 	}
 
+	email, ok := claims["email"].(string)
+	if !ok {
+		return nil, ErrInvalidToken
+	}
+
+	role, ok := claims["role"].(string)
+	if !ok {
+		return nil, ErrInvalidToken
+	}
+
 	// Verify token type
 	tokenType, ok := claims["type"].(string)
 	if !ok || tokenType != "access" {
@@ -119,6 +131,8 @@ func (s *JWTService) ValidateAccessToken(tokenString string) (*outbound.TokenCla
 
 	return &outbound.TokenClaims{
 		UserID: userID,
+		Email:  email,
+		Role:   role,
 	}, nil
 }
 

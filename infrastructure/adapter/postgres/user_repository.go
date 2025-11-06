@@ -26,7 +26,7 @@ func (r *UserRepositoryAdapter) FindByEmail(ctx context.Context, email string) (
 	}
 
 	query := `
-		SELECT id, email, password, created_at, updated_at
+		SELECT id, email, password, role, created_at, updated_at
 		FROM users
 		WHERE email = $1
 		LIMIT 1
@@ -37,6 +37,7 @@ func (r *UserRepositoryAdapter) FindByEmail(ctx context.Context, email string) (
 		&user.ID,
 		&user.Email,
 		&user.Password,
+		&user.Role,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -57,7 +58,7 @@ func (r *UserRepositoryAdapter) FindByID(ctx context.Context, id string) (*entit
 	}
 
 	query := `
-		SELECT id, email, password, created_at, updated_at
+		SELECT id, email, password, role, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -67,6 +68,7 @@ func (r *UserRepositoryAdapter) FindByID(ctx context.Context, id string) (*entit
 		&user.ID,
 		&user.Email,
 		&user.Password,
+		&user.Role,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -91,14 +93,15 @@ func (r *UserRepositoryAdapter) Create(ctx context.Context, user *entity.User) e
 	}
 
 	query := `
-		INSERT INTO users (id, email, password, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO users (id, email, password, role, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
 		user.ID,
 		user.Email,
 		user.Password,
+		user.Role,
 		user.CreatedAt,
 		user.UpdatedAt,
 	)

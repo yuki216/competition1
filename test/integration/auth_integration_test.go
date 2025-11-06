@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/vobe/auth-service/application/port/inbound"
 	"github.com/vobe/auth-service/application/port/outbound"
 	"github.com/vobe/auth-service/domain/entity"
@@ -23,33 +24,32 @@ import (
 	"github.com/vobe/auth-service/infrastructure/http/response"
 	"github.com/vobe/auth-service/infrastructure/persistence/usecase"
 	"github.com/vobe/auth-service/infrastructure/service/jwt"
-	"github.com/vobe/auth-service/infrastructure/service/password"
-	"github.com/vobe/auth-service/infrastructure/service/recaptcha"
-	"github.com/vobe/auth-service/infrastructure/service/ratelimit"
 	"github.com/vobe/auth-service/infrastructure/service/logger"
-	"github.com/sirupsen/logrus"
+	"github.com/vobe/auth-service/infrastructure/service/password"
+	"github.com/vobe/auth-service/infrastructure/service/ratelimit"
+	"github.com/vobe/auth-service/infrastructure/service/recaptcha"
 
 	_ "github.com/lib/pq"
 )
 
 type AuthIntegrationTestSuite struct {
-	db           *sql.DB
-	authHandler  *handler.AuthHandler
-	authUseCase  inbound.AuthUseCase
-	config       *config.Config
-	ctx          context.Context
+	db          *sql.DB
+	authHandler *handler.AuthHandler
+	authUseCase inbound.AuthUseCase
+	config      *config.Config
+	ctx         context.Context
 }
 
 func setupAuthIntegrationTest(t *testing.T) *AuthIntegrationTestSuite {
 	ctx := context.Background()
-	
+
 	// Load config
 	cfg := &config.Config{
-		DatabaseURL:     "postgres://postgres:postgres@localhost:5432/auth_service_test?sslmode=disable",
-		JWTSecret:       "test-secret-key",
-		JWTAlgorithm:    "HS256",
-		AccessTokenTTL:  900,    // 15 minutes
-		RefreshTokenTTL: 2592000, // 30 days
+		DatabaseURL:      "postgres://postgres:postgres@localhost:5432/auth_service_test?sslmode=disable",
+		JWTSecret:        "test-secret-key",
+		JWTAlgorithm:     "HS256",
+		AccessTokenTTL:   900,     // 15 minutes
+		RefreshTokenTTL:  2592000, // 30 days
 		RefreshTokenSalt: "test-salt",
 	}
 
@@ -132,13 +132,13 @@ func TestLoginIntegration(t *testing.T) {
 	defer suite.cleanup(t)
 
 	tests := []struct {
-		name           string
-		setup          func()
-		requestBody    interface{}
-		expectedStatus int
+		name            string
+		setup           func()
+		requestBody     interface{}
+		expectedStatus  int
 		expectedSuccess bool
 		expectedMessage string
-		checkResponse  func(t *testing.T, result response.Envelope)
+		checkResponse   func(t *testing.T, result response.Envelope)
 	}{
 		{
 			name: "successful login",
@@ -146,8 +146,10 @@ func TestLoginIntegration(t *testing.T) {
 				// Create test user with bcrypt hashed password matching "password123"
 				ps := password.NewBcryptPasswordService(10)
 				hash, err := ps.HashPassword("password123")
-				if err != nil { t.Fatal(err) }
-				user := entity.NewUser("test-user-id", "test@example.com", hash)
+				if err != nil {
+					t.Fatal(err)
+				}
+				user := entity.NewUser("test-user-id", "test@example.com", hash, "")
 				if _, err := suite.db.ExecContext(suite.ctx, `
 					INSERT INTO users (id, email, password, created_at, updated_at)
 					VALUES ($1, $2, $3, $4, $5)
@@ -167,7 +169,7 @@ func TestLoginIntegration(t *testing.T) {
 				"email":    "test@example.com",
 				"password": "password123",
 			},
-			expectedStatus: http.StatusOK,
+			expectedStatus:  http.StatusOK,
 			expectedSuccess: true,
 			expectedMessage: "success",
 			checkResponse: func(t *testing.T, result response.Envelope) {
@@ -192,7 +194,7 @@ func TestLoginIntegration(t *testing.T) {
 				"email":    "invalid-email",
 				"password": "password123",
 			},
-			expectedStatus: http.StatusUnprocessableEntity,
+			expectedStatus:  http.StatusUnprocessableEntity,
 			expectedSuccess: false,
 			expectedMessage: "Invalid email format",
 		},
@@ -201,7 +203,7 @@ func TestLoginIntegration(t *testing.T) {
 			requestBody: map[string]interface{}{
 				"password": "password123",
 			},
-			expectedStatus: http.StatusUnprocessableEntity,
+			expectedStatus:  http.StatusUnprocessableEntity,
 			expectedSuccess: false,
 			expectedMessage: "Invalid email format",
 		},
@@ -210,7 +212,7 @@ func TestLoginIntegration(t *testing.T) {
 			requestBody: map[string]interface{}{
 				"email": "test@example.com",
 			},
-			expectedStatus: http.StatusUnprocessableEntity,
+			expectedStatus:  http.StatusUnprocessableEntity,
 			expectedSuccess: false,
 			expectedMessage: "Password is required",
 		},
@@ -220,7 +222,7 @@ func TestLoginIntegration(t *testing.T) {
 				"email":    "test@example.com",
 				"password": "wrong-password",
 			},
-			expectedStatus: http.StatusUnauthorized,
+			expectedStatus:  http.StatusUnauthorized,
 			expectedSuccess: false,
 			expectedMessage: "Email atau password salah",
 		},
@@ -274,8 +276,10 @@ func TestRefreshIntegration(t *testing.T) {
 	// Setup test data
 	ps := password.NewBcryptPasswordService(10)
 	hash, err := ps.HashPassword("password123")
-	if err != nil { t.Fatal(err) }
-	user := entity.NewUser("test-user-id", "test@example.com", hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := entity.NewUser("test-user-id", "test@example.com", hash, "")
 	if _, err := suite.db.ExecContext(suite.ctx, `
 		INSERT INTO users (id, email, password, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5)
@@ -291,30 +295,30 @@ func TestRefreshIntegration(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		refreshToken   string
-		expectedStatus int
+		name            string
+		refreshToken    string
+		expectedStatus  int
 		expectedSuccess bool
 		expectedMessage string
 	}{
 		{
-			name:           "successful refresh",
-			refreshToken:   "test-refresh-token",
-			expectedStatus: http.StatusOK,
+			name:            "successful refresh",
+			refreshToken:    "test-refresh-token",
+			expectedStatus:  http.StatusOK,
 			expectedSuccess: true,
 			expectedMessage: "success",
 		},
 		{
-			name:           "invalid refresh token",
-			refreshToken:   "invalid-token",
-			expectedStatus: http.StatusUnauthorized,
+			name:            "invalid refresh token",
+			refreshToken:    "invalid-token",
+			expectedStatus:  http.StatusUnauthorized,
 			expectedSuccess: false,
 			expectedMessage: "Invalid or expired refresh token",
 		},
 		{
-			name:           "missing refresh token",
-			refreshToken:   "",
-			expectedStatus: http.StatusUnauthorized,
+			name:            "missing refresh token",
+			refreshToken:    "",
+			expectedStatus:  http.StatusUnauthorized,
 			expectedSuccess: false,
 			expectedMessage: "Refresh token required",
 		},
@@ -362,8 +366,10 @@ func TestLogoutIntegration(t *testing.T) {
 	// Setup test data
 	ps := password.NewBcryptPasswordService(10)
 	hash, err := ps.HashPassword("password123")
-	if err != nil { t.Fatal(err) }
-	user := entity.NewUser("test-user-id", "test@example.com", hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := entity.NewUser("test-user-id", "test@example.com", hash, "")
 	if _, err := suite.db.ExecContext(suite.ctx, `
 		INSERT INTO users (id, email, password, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5)
@@ -379,30 +385,30 @@ func TestLogoutIntegration(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		refreshToken   string
-		expectedStatus int
+		name            string
+		refreshToken    string
+		expectedStatus  int
 		expectedSuccess bool
 		expectedMessage string
 	}{
 		{
-			name:           "successful logout",
-			refreshToken:   "test-refresh-token",
-			expectedStatus: http.StatusNoContent,
+			name:            "successful logout",
+			refreshToken:    "test-refresh-token",
+			expectedStatus:  http.StatusNoContent,
 			expectedSuccess: true,
 			expectedMessage: "",
 		},
 		{
-			name:           "invalid refresh token",
-			refreshToken:   "invalid-token",
-			expectedStatus: http.StatusUnauthorized,
+			name:            "invalid refresh token",
+			refreshToken:    "invalid-token",
+			expectedStatus:  http.StatusUnauthorized,
 			expectedSuccess: false,
 			expectedMessage: "Invalid refresh token",
 		},
 		{
-			name:           "missing refresh token",
-			refreshToken:   "",
-			expectedStatus: http.StatusUnauthorized,
+			name:            "missing refresh token",
+			refreshToken:    "",
+			expectedStatus:  http.StatusUnauthorized,
 			expectedSuccess: false,
 			expectedMessage: "Refresh token required",
 		},
@@ -451,7 +457,7 @@ func TestMeIntegration(t *testing.T) {
 	defer suite.cleanup(t)
 
 	// Setup test data
-	user := entity.NewUser("test-user-id", "test@example.com", "hashed-password")
+	user := entity.NewUser("test-user-id", "test@example.com", "hashed-password", "")
 	if _, err := suite.db.ExecContext(suite.ctx, `
 		INSERT INTO users (id, email, password, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5)
@@ -470,17 +476,17 @@ func TestMeIntegration(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		authHeader     string
-		expectedStatus int
+		name            string
+		authHeader      string
+		expectedStatus  int
 		expectedSuccess bool
 		expectedMessage string
-		checkResponse  func(t *testing.T, result response.Envelope)
+		checkResponse   func(t *testing.T, result response.Envelope)
 	}{
 		{
-			name:           "successful me request",
-			authHeader:     "Bearer " + accessToken,
-			expectedStatus: http.StatusOK,
+			name:            "successful me request",
+			authHeader:      "Bearer " + accessToken,
+			expectedStatus:  http.StatusOK,
 			expectedSuccess: true,
 			expectedMessage: "success",
 			checkResponse: func(t *testing.T, result response.Envelope) {
@@ -488,34 +494,34 @@ func TestMeIntegration(t *testing.T) {
 				if !ok {
 					t.Fatal("Expected data to be an object")
 				}
-				
+
 				if data["id"] != "test-user-id" {
 					t.Errorf("Expected id 'test-user-id', got '%v'", data["id"])
 				}
-				
+
 				if data["email"] != "test@example.com" {
 					t.Errorf("Expected email 'test@example.com', got '%v'", data["email"])
 				}
 			},
 		},
 		{
-			name:           "missing auth header",
-			authHeader:     "",
-			expectedStatus: http.StatusUnauthorized,
+			name:            "missing auth header",
+			authHeader:      "",
+			expectedStatus:  http.StatusUnauthorized,
 			expectedSuccess: false,
 			expectedMessage: "Authorization header required",
 		},
 		{
-			name:           "invalid auth header format",
-			authHeader:     "InvalidFormat token",
-			expectedStatus: http.StatusUnauthorized,
+			name:            "invalid auth header format",
+			authHeader:      "InvalidFormat token",
+			expectedStatus:  http.StatusUnauthorized,
 			expectedSuccess: false,
 			expectedMessage: "Invalid authorization header format",
 		},
 		{
-			name:           "invalid token",
-			authHeader:     "Bearer invalid-token",
-			expectedStatus: http.StatusUnauthorized,
+			name:            "invalid token",
+			authHeader:      "Bearer invalid-token",
+			expectedStatus:  http.StatusUnauthorized,
 			expectedSuccess: false,
 			expectedMessage: "Invalid or expired token",
 		},
@@ -531,16 +537,18 @@ func TestMeIntegration(t *testing.T) {
 			}
 
 			// Wrap with auth middleware to enforce Authorization checks
-	ts, err := jwt.NewJWTService(suite.config)
-	if err != nil { t.Fatal(err) }
-	authMw := middleware.NewAuthMiddleware(ts)
-	h := authMw.RequireAuth(suite.authHandler.Me)
+			ts, err := jwt.NewJWTService(suite.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			authMw := middleware.NewAuthMiddleware(ts)
+			h := authMw.RequireAuth(suite.authHandler.Me)
 
-	w := httptest.NewRecorder()
-	h(w, req)
+			w := httptest.NewRecorder()
+			h(w, req)
 
-	resp := w.Result()
-	defer resp.Body.Close()
+			resp := w.Result()
+			defer resp.Body.Close()
 
 			if resp.StatusCode != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d", tt.expectedStatus, resp.StatusCode)

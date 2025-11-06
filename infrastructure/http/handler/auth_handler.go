@@ -32,6 +32,13 @@ type LoginRequest struct {
 type LoginResponse struct {
 	AccessToken string `json:"access_token"`
 	ExpiresIn   int    `json:"expires_in"`
+	User        UserInfo `json:"user"`
+}
+
+type UserInfo struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+	Role  string `json:"role"`
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -110,10 +117,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   loginRes.RefreshExpiresIn,
 	})
 
-	// Return success response
+	// User info is now included in the login response from the use case
 	response.Success(w, http.StatusOK, "success", LoginResponse{
 		AccessToken: loginRes.AccessToken,
 		ExpiresIn:   loginRes.ExpiresIn,
+		User: UserInfo{
+			ID:    loginRes.User.ID,
+			Email: loginRes.User.Email,
+			Role:  loginRes.User.Role,
+		},
 	})
 }
 
