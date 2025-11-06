@@ -155,6 +155,7 @@ Setiap use case harus ringan, idempotent, dan diuji menggunakan table-driven tes
 * REST endpoints (OpenAPI-ready):
 
     * POST /v1/tickets → create ticket
+    * POST /v1/tickets/ai-intake → create ticket berbasis analisis AI dengan override terkontrol (lihat Use Case AIIntakeCreateTicketUseCase)
     * GET /v1/tickets/{id} → ticket detail + comments
     * POST /v1/tickets/{id}/comments → add comment
     * POST /v1/tickets/{id}/assign → assign ticket
@@ -212,6 +213,7 @@ Extensions:
   /adapter
     /http
       handler_ticket.go
+      handler_ticket_ai_intake.go (endpoint intake)
       handler_ai_suggest.go (JSON + SSE)
       handler_kb.go (CRUD + publish)
     /persistence
@@ -557,3 +559,13 @@ func (r *KBRepo) QueryTopK(ctx context.Context, query string, topK int, tags []s
 ---
 
 *End of plan v1.0*
+* **AIIntakeCreateTicketUseCase**
+
+    * Input: AICreateTicketDTO `{ description (required), createdBy (required), title?, category?, priority?, flags: { autoCategorize?, autoPrioritize?, autoTitleFromAI? } }`
+    * Flow:
+      1. Call `AISuggestionService.SuggestMitigation(description)` untuk memperoleh `AIInsight` (mitigation + confidence) dan prediksi atribut (kategori/prioritas/judul ringkas) bila tersedia.
+      2. Terapkan override terkontrol per field menggunakan ambang kepercayaan: `categoryConfidence ≥ 0.7`, `priorityConfidence ≥ 0.7`, `titleQualityScore ≥ 0.6`.
+      3. Bangun payload tiket final dari input user + override AI; set `status=OPEN`; sematkan `aiInsight`.
+      4. Persist menggunakan `TicketRepository.Create()` dalam transaksi; emit event `TicketCreated`.
+      5. Return `TicketDTO` + `overrideMeta` (field yang diisi AI beserta confidence) untuk audit.
+    * Output: `TicketDTO` dengan `AIInsight` + `overrideMeta`.

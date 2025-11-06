@@ -522,6 +522,54 @@ paths:
         '500':
           description: Internal server error
 
+  /v1/tickets/ai-intake:
+    post:
+      summary: Create ticket via AI intake
+      description: Create a new ticket based on AI analysis of the provided description. Applies controlled overrides for category/priority/title if confidence thresholds are met and returns the created ticket with AI insight and override metadata.
+      operationId: aiIntakeCreateTicket
+      tags:
+        - Tickets
+        - AI
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AITicketIntakeRequest'
+      responses:
+        '201':
+          description: Ticket created via AI intake
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AITicketIntakeResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -531,6 +579,134 @@ components:
       description: JWT access token for authentication
 
   schemas:
+    AITicketIntakeRequest:
+      type: object
+      properties:
+        description:
+          type: string
+        created_by:
+          type: string
+          format: uuid
+        title:
+          type: string
+        category:
+          type: string
+          enum: [NETWORK, SOFTWARE, HARDWARE, ACCOUNT, OTHER]
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        autoCategorize:
+          type: boolean
+          default: true
+        autoPrioritize:
+          type: boolean
+          default: true
+        autoTitleFromAI:
+          type: boolean
+          default: true
+      required:
+        - description
+        - created_by
+
+    AITicketIntakeResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            ticket:
+              $ref: '#/components/schemas/Ticket'
+            ai_insight:
+              $ref: '#/components/schemas/AIInsight'
+            override_meta:
+              type: array
+              items:
+                $ref: '#/components/schemas/OverrideMetaItem'
+          required:
+            - ticket
+        success:
+          type: boolean
+          example: true
+      required:
+        - data
+        - success
+
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "ticket_20250101120000"
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+        category:
+          type: string
+          enum: [NETWORK, SOFTWARE, HARDWARE, ACCOUNT, OTHER]
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        created_by:
+          type: string
+          format: uuid
+        assigned_to:
+          type: string
+          nullable: true
+        ai_insight:
+          $ref: '#/components/schemas/AIInsight'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - description
+        - status
+        - category
+        - priority
+        - created_by
+        - created_at
+        - updated_at
+
+    AIInsight:
+      type: object
+      properties:
+        text:
+          type: string
+        confidence:
+          type: number
+          format: float
+      required:
+        - text
+        - confidence
+
+    OverrideMetaItem:
+      type: object
+      properties:
+        field:
+          type: string
+          enum: [title, category, priority]
+        source:
+          type: string
+          enum: [AI, USER]
+        value:
+          type: string
+        confidence:
+          type: number
+          format: float
+        reason:
+          type: string
+          description: Explanation for applying or not applying AI override
+      required:
+        - field
+        - source
     KbEntryCreateRequest:
       type: object
       properties:
@@ -902,3 +1078,9 @@ tags:
     description: User authentication operations
   - name: User
     description: User information operations
+  - name: KnowledgeBase
+    description: Knowledge base operations
+  - name: AI
+    description: AI suggestion and streaming operations
+  - name: Tickets
+    description: Ticket operations (creation, AI intake)

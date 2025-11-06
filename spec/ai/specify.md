@@ -72,6 +72,34 @@ AI membuat tiket otomatis jika perintah mengandung kata aksi (*“tolong buatkan
 
 ---
 
+### 3.2a AI Intake — Auto Create Ticket dari Saran AI
+
+**Trigger:** Employee meminta sistem membuat tiket setelah melihat saran AI (atau menginstruksikan langsung via chat: "buatkan tiket").
+
+**Main Flow:**
+
+1. Employee mengirim deskripsi ke AI dan memilih opsi "Buatkan Tiket" atau menyertakan instruksi eksplisit.
+2. Sistem melakukan analisis AI (kategori, prioritas, judul ringkas) dan menghasilkan `AIInsight` dengan confidence.
+3. Sistem memutuskan override terkontrol berdasarkan ambang kepercayaan:
+   - `category` diisi dari AI jika `categoryConfidence ≥ 0.7`, selain itu gunakan input user/default.
+   - `priority` diisi dari AI jika `priorityConfidence ≥ 0.7`.
+   - `title` dapat disarankan AI (ringkas), gunakan jika `titleQualityScore ≥ 0.6`.
+4. Sistem membuat tiket (`status=OPEN`) menggunakan field akhir + menyematkan `AIInsight`.
+5. Sistem mengembalikan tiket yang dibuat beserta AIInsight.
+
+**Alternative:**
+- Jika confidence AI di bawah ambang untuk semua field, sistem hanya menempelkan `AIInsight` tanpa override, tetap membuat tiket berdasarkan input user.
+- Jika employee belum memberikan field minimal (mis. kategori/prioritas), sistem dapat mengisi menggunakan prediksi AI bila confidence cukup.
+
+**Acceptance Criteria:**
+
+* [ ] Tiket berhasil dibuat (`OPEN`) dengan `AIInsight` yang mencerminkan saran.
+* [ ] Override field hanya terjadi bila confidence per field memenuhi ambang yang ditentukan.
+* [ ] Semua keputusan override dicatat dalam audit metadata (field, nilai AI, confidence).
+* [ ] Endpoint intake tersedia dan tervalidasi inputnya (lihat §9.6 API Surface).
+
+---
+
 ### 3.3 Comment on Ticket
 
 **Trigger:** Employee atau Admin menambahkan komentar pada tiket.
@@ -308,6 +336,12 @@ CREATE INDEX IF NOT EXISTS idx_kb_chunks_embedding_ivfflat
 - `POST /v1/ai/suggest` → input: `query`, optional `filters`, `top_k`; output: daftar rekomendasi dengan `content`, `score`, `entry_id`, `chunk_index` (JSON)
 - `GET  /v1/ai/suggest/stream` → SSE, header: `Content-Type: text/event-stream`; query: `query`, optional `filters`, `top_k`. Mengirim event `init`, banyak `candidate`, `progress`, `end`, `error`.
   - Catatan: endpoint legacy `POST /ai/suggest` dapat dipertahankan sebagai alias non-versioned (opsional).
+
+- `POST /v1/tickets/ai-intake` → membuat tiket berbasis analisis AI. Body:
+  - `description` (wajib), `created_by` (wajib), `title` (opsional), `category` (opsional), `priority` (opsional)
+  - flag opsional: `autoCategorize`, `autoPrioritize`, `autoTitleFromAI`
+  - aturan override: hanya bila confidence per field memenuhi ambang (default: 0.7 untuk kategori/prioritas, 0.6 untuk judul).
+  - Response: `ticket` + `ai_insight` + `override_meta` (field yang diisi AI + confidence)
 
 ### 9.7 Alur Ingest & Retrieval
 

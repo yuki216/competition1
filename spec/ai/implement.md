@@ -103,3 +103,50 @@ Implementasi Knowledge Base berbasis pgvector untuk ingest teks/markdown, publis
 - Kuota provider habis: rate limit & fallback; cache embedding jika diperlukan.
 - Dimensi tidak konsisten: validasi dan fail-fast; migrasi ulang data.
 - Latensi tinggi: batch & concurrency; tuning ivfflat; kurangi CHUNK_SIZE bila perlu.
+
+## 13. AI Intake — Auto Create Ticket dari Saran AI
+
+### 13.1 Handler & Routing
+- Endpoint: `POST /v1/tickets/ai-intake`
+- Handler: `handler_ticket_ai_intake.go`
+  - Validasi body: `description` (wajib), `created_by` (wajib), opsional: `title`, `category`, `priority`, flags `autoCategorize`, `autoPrioritize`, `autoTitleFromAI`.
+  - Panggil `AIIntakeCreateTicketUseCase` (application layer) dengan DTO yang sama.
+  - Return `201 Created` dengan `ticket`, `ai_insight`, `override_meta`.
+
+### 13.2 Use Case (Application Layer)
+- Nama: `AIIntakeCreateTicketUseCase`
+- Flow:
+  1. `AISuggestionService.SuggestMitigation(description)` → dapatkan `mitigation`, `confidence`, serta prediksi atribut (jika tersedia) dari model/heuristik.
+  2. Bangun objek `AIInsight{ text: mitigation, confidence }` dan attach ke tiket.
+  3. Terapkan override terkontrol per field:
+     - `category` bila `categoryConfidence ≥ 0.7` atau flag `autoCategorize=true` dengan confidence memenuhi.
+     - `priority` bila `priorityConfidence ≥ 0.7` atau flag `autoPrioritize=true`.
+     - `title` ringkas bila `titleQualityScore ≥ 0.6` atau flag `autoTitleFromAI=true` dengan skor memenuhi.
+  4. Persist tiket dengan `TicketRepository.Create()`; emit event `TicketCreated`.
+  5. Return `TicketDTO` + `overrideMeta` (field diisi AI + confidence + alasan).
+
+Catatan: Saran AI ditopang oleh KB vector (pgvector) sesuai implementasi di dokumen ini; Suggestion Service melakukan Top-K retrieval pada `kb_chunks` yang telah dipublish.
+
+### 13.3 Aturan & Validasi
+- Minimal field: `description`, `created_by`.
+- Jika input `category/priority` kosong namun AI confidence tinggi, sistem boleh mengisi otomatis.
+- Audit metadata menyimpan asal nilai (USER vs AI) dan confidence.
+- Rate limit intake agar tidak menjadi spam tiket.
+
+## 14. Konfigurasi Khusus Intake
+- `AI_INTake_CATEGORY_THRESHOLD=0.7`
+- `AI_INTake_PRIORITY_THRESHOLD=0.7`
+- `AI_INTake_TITLE_THRESHOLD=0.6`
+- `AI_INTake_ENABLED=true`
+- `AI_INTake_MAX_PER_USER_PER_MIN=10` (rate limit contoh)
+
+## 15. Observability (Intake)
+- Metrics: `ai_intake_request_count`, `ai_intake_created_count`, `ai_intake_override_count`, `ai_intake_latency_ms`.
+- Logs: `user_id`, `ticket_id`, `override_meta`, `confidence`, `provider`.
+- Tracing: span untuk `suggest_call`, `override_apply`, `ticket_create`.
+
+## 16. Testing (Intake)
+- Unit: aturan override per field vs threshold; fallback ke nilai user jika confidence rendah.
+- Integration: alur end-to-end intake → repository `Create()` terpanggil dan audit metadata tersimpan.
+- Negative: deskripsi kosong, provider error (5xx/429), rate limit tercapai.
+- Contract: DTO input/output sesuai dengan `spec/ai/specify.md` dan `plan.md`.
