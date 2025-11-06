@@ -100,6 +100,67 @@ AI membuat tiket otomatis jika perintah mengandung kata aksi (*“tolong buatkan
 
 ---
 
+Request & Response (Contoh):
+
+Request — POST /v1/tickets/ai-intake
+{
+  "description": "Laptop tidak bisa connect Wi-Fi sejak pagi, sudah coba restart namun tetap gagal.",
+  "title": "Wi-Fi tidak bisa connect",
+  "autoCategorize": true,
+  "autoPrioritize": true,
+  "autoTitleFromAI": true
+}
+
+Response — 201 Created
+{
+  "data": {
+    "ticket": {
+      "id": "ticket_20250101123045",
+      "title": "Wi-Fi gagal terhubung di laptop",
+      "description": "Laptop tidak bisa connect Wi-Fi sejak pagi, sudah coba restart namun tetap gagal.",
+      "status": "OPEN",
+      "category": "NETWORK",
+      "priority": "HIGH",
+      "created_by": "123e4567-e89b-12d3-a456-426614174000",
+      "assigned_to": null,
+      "ai_insight": {
+        "text": "Coba forget network kemudian sambungkan ulang. Jika tetap gagal, reset adapter Wi-Fi dan periksa driver.",
+        "confidence": 0.82
+      },
+      "created_at": "2025-01-01T12:30:45Z",
+      "updated_at": "2025-01-01T12:30:45Z"
+    },
+    "ai_insight": {
+      "text": "Coba forget network kemudian sambungkan ulang. Jika tetap gagal, reset adapter Wi-Fi dan periksa driver.",
+      "confidence": 0.82
+    },
+    "override_meta": [
+      {
+        "field": "category",
+        "source": "AI",
+        "value": "NETWORK",
+        "confidence": 0.91,
+        "reason": "Prediksi kategori dengan confidence tinggi berdasarkan kata kunci 'Wi-Fi'"
+      },
+      {
+        "field": "priority",
+        "source": "AI",
+        "value": "HIGH",
+        "confidence": 0.76,
+        "reason": "Prioritas ditingkatkan karena masalah berdampak pada konektivitas kerja"
+      },
+      {
+        "field": "title",
+        "source": "AI",
+        "value": "Wi-Fi gagal terhubung di laptop",
+        "confidence": 0.65,
+        "reason": "Ringkasan judul otomatis dari deskripsi"
+      }
+    ]
+  },
+  "success": true
+}
+
 ### 3.3 Comment on Ticket
 
 **Trigger:** Employee atau Admin menambahkan komentar pada tiket.
@@ -338,7 +399,8 @@ CREATE INDEX IF NOT EXISTS idx_kb_chunks_embedding_ivfflat
   - Catatan: endpoint legacy `POST /ai/suggest` dapat dipertahankan sebagai alias non-versioned (opsional).
 
 - `POST /v1/tickets/ai-intake` → membuat tiket berbasis analisis AI. Body:
-  - `description` (wajib), `created_by` (wajib), `title` (opsional), `category` (opsional), `priority` (opsional)
+  - `description` (wajib), `title` (opsional), `category` (opsional), `priority` (opsional)
+  - Catatan: `created_by` diambil otomatis dari konteks autentikasi (JWT bearer token) dan TIDAK dikirim di body.
   - flag opsional: `autoCategorize`, `autoPrioritize`, `autoTitleFromAI`
   - aturan override: hanya bila confidence per field memenuhi ambang (default: 0.7 untuk kategori/prioritas, 0.6 untuk judul).
   - Response: `ticket` + `ai_insight` + `override_meta` (field yang diisi AI + confidence)

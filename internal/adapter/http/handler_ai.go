@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fixora/fixora/internal/domain"
-	"github.com/fixora/fixora/internal/usecase"
+	"fixora/internal/domain"
+	"fixora/internal/usecase"
 
 	"github.com/gorilla/mux"
 )
@@ -33,6 +33,8 @@ func (h *AIHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/v1/ai/analyze", h.AnalyzeTicketContent).Methods("POST")
 	router.HandleFunc("/api/v1/ai/health", h.HealthCheck).Methods("GET")
 	router.HandleFunc("/api/v1/ai/info", h.GetProviderInfo).Methods("GET")
+	// AI-driven ticket intake
+	router.HandleFunc("/api/v1/tickets/ai-intake", h.AIIntakeCreateTicket).Methods("POST")
 }
 
 // GetSuggestion handles AI suggestion requests
@@ -111,8 +113,8 @@ func (h *AIHandler) StreamSuggestion(w http.ResponseWriter, r *http.Request) {
 // SearchKnowledgeBase handles knowledge base search requests
 func (h *AIHandler) SearchKnowledgeBase(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Query   string                 `json:"query" validate:"required"`
-		Filters domain.KBChunkFilter   `json:"filters"`
+		Query   string               `json:"query" validate:"required"`
+		Filters domain.KBChunkFilter `json:"filters"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -220,7 +222,7 @@ func (h *AIHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	err := h.aiUseCase.ValidateAIProvider(r.Context())
 
 	response := map[string]interface{}{
-		"healthy": err == nil,
+		"healthy":   err == nil,
 		"timestamp": time.Now().Unix(),
 	}
 
@@ -241,6 +243,40 @@ func (h *AIHandler) GetProviderInfo(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(info)
+}
+
+// AIIntakeCreateTicket handles AI-driven ticket intake and ticket creation
+func (h *AIHandler) AIIntakeCreateTicket(w http.ResponseWriter, r *http.Request) {
+	var req usecase.AITicketIntakeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Default auto flags when field not provided
+	if req.Title == "" {
+		req.AutoTitleFromAI = true
+	}
+	if req.Category == "" {
+		req.AutoCategorize = true
+	}
+	if req.Priority == "" {
+		req.AutoPrioritize = true
+	}
+
+	createdBy := r.Header.Get("X-User-ID")
+	if createdBy == "" {
+		createdBy = "default-user"
+	}
+
+	res, err := h.aiUseCase.IntakeCreateTicket(r.Context(), req, createdBy)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(res)
 }
 
 // Helper methods for Server-Sent Events
@@ -288,9 +324,9 @@ func (h *AIHandler) sendSSEError(w http.ResponseWriter, errorCode, message strin
 
 // SSE Event Types
 const (
-	SSEEventTypeInit     = "init"
+	SSEEventTypeInit      = "init"
 	SSEEventTypeCandidate = "candidate"
-	SSEEventTypeProgress = "progress"
-	SSEEventTypeEnd      = "end"
-	SSEEventTypeError    = "error"
+	SSEEventTypeProgress  = "progress"
+	SSEEventTypeEnd       = "end"
+	SSEEventTypeError     = "error"
 )
