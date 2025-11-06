@@ -563,12 +563,11 @@ func TestAIAPI(t *testing.T) {
 			t.Errorf("Expected status %d, got %d", http.StatusOK, resp.StatusCode)
 		}
 
-		// Read response body to see actual format
+		// Read response body
 		body, readErr := io.ReadAll(resp.Body)
 		if readErr != nil {
 			t.Fatalf("Failed to read response body: %v", readErr)
 		}
-		t.Logf("AI Info response: %s", string(body))
 
 		var info map[string]interface{}
 		if err := json.Unmarshal(body, &info); err != nil {
