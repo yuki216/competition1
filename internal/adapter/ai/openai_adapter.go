@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"fixora/internal/ports"
+	"github.com/fixora/fixora/internal/ports"
 )
 
 // OpenAIAdapter implements AI services using OpenAI APIs

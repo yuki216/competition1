@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"fixora/internal/domain"
-	"fixora/internal/usecase"
+	"github.com/fixora/fixora/internal/usecase"
+
+	"github.com/fixora/fixora/internal/domain"
 
 	"github.com/gorilla/mux"
 )
