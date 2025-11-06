@@ -95,6 +95,43 @@ func (m *AuthMiddleware) OptionalAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// RequireAdmin ensures that the user has admin role
+func (m *AuthMiddleware) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// First require authentication
+		authHandler := m.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
+			// Get user claims from context
+			claims := GetUserClaims(r.Context())
+			if claims == nil {
+				response.Unauthorized(w, "User not authenticated")
+				return
+			}
+
+			// Check if user has admin role
+			if !isAdminRole(claims.Role) {
+				response.Forbidden(w, "Admin access required")
+				return
+			}
+
+			// User is admin, proceed
+			next.ServeHTTP(w, r)
+		})
+
+		authHandler.ServeHTTP(w, r)
+	}
+}
+
+// isAdminRole checks if the role is considered admin
+func isAdminRole(role string) bool {
+	adminRoles := []string{"admin", "superadmin"}
+	for _, adminRole := range adminRoles {
+		if role == adminRole {
+			return true
+		}
+	}
+	return false
+}
+
 // GetUserClaims retrieves user claims from context
 func GetUserClaims(ctx context.Context) *outbound.TokenClaims {
 	if claims, ok := ctx.Value(AuthUserKey).(*outbound.TokenClaims); ok {

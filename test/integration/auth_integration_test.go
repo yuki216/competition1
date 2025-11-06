@@ -48,8 +48,8 @@ func setupAuthIntegrationTest(t *testing.T) *AuthIntegrationTestSuite {
 		DatabaseURL:      "postgres://postgres:postgres@localhost:5432/auth_service_test?sslmode=disable",
 		JWTSecret:        "test-secret-key",
 		JWTAlgorithm:     "HS256",
-		AccessTokenTTL:   900,     // 15 minutes
-		RefreshTokenTTL:  2592000, // 30 days
+		AccessTokenTTL:   15 * 60,  // 15 minutes in seconds
+		RefreshTokenTTL:  30 * 24 * 60 * 60, // 30 days in seconds
 		RefreshTokenSalt: "test-salt",
 	}
 
@@ -149,11 +149,11 @@ func TestLoginIntegration(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				user := entity.NewUser("test-user-id", "test@example.com", hash, "")
+				user := entity.NewUser("test-user-id", "Test User", "test@example.com", hash, "user", "active")
 				if _, err := suite.db.ExecContext(suite.ctx, `
-					INSERT INTO users (id, email, password, created_at, updated_at)
-					VALUES ($1, $2, $3, $4, $5)
-				`, user.ID, user.Email, user.Password, user.CreatedAt, user.UpdatedAt); err != nil {
+					INSERT INTO users (id, name, email, password, role, status, created_at, updated_at)
+					VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+				`, user.ID, user.Name, user.Email, user.Password, user.Role, user.Status, user.CreatedAt, user.UpdatedAt); err != nil {
 					t.Fatal(err)
 				}
 				// Verify the stored hash matches what we generated
@@ -279,11 +279,11 @@ func TestRefreshIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	user := entity.NewUser("test-user-id", "test@example.com", hash, "")
+	user := entity.NewUser("test-user-id", "Test User", "test@example.com", hash, "user", "active")
 	if _, err := suite.db.ExecContext(suite.ctx, `
-		INSERT INTO users (id, email, password, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
-	`, user.ID, user.Email, user.Password, user.CreatedAt, user.UpdatedAt); err != nil {
+		INSERT INTO users (id, name, email, password, role, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, user.ID, user.Name, user.Email, user.Password, user.Role, user.Status, user.CreatedAt, user.UpdatedAt); err != nil {
 		t.Fatal(err)
 	}
 
@@ -369,11 +369,11 @@ func TestLogoutIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	user := entity.NewUser("test-user-id", "test@example.com", hash, "")
+	user := entity.NewUser("test-user-id", "Test User", "test@example.com", hash, "user", "active")
 	if _, err := suite.db.ExecContext(suite.ctx, `
-		INSERT INTO users (id, email, password, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
-	`, user.ID, user.Email, user.Password, user.CreatedAt, user.UpdatedAt); err != nil {
+		INSERT INTO users (id, name, email, password, role, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, user.ID, user.Name, user.Email, user.Password, user.Role, user.Status, user.CreatedAt, user.UpdatedAt); err != nil {
 		t.Fatal(err)
 	}
 
@@ -384,33 +384,56 @@ func TestLogoutIntegration(t *testing.T) {
 		t.Fatalf("failed to create refresh token: %v", err)
 	}
 
+	// Generate access token for logout tests using same service as authUseCase
+	// We need to get the token service from authUseCase somehow. For now, let's create a new one but with consistent config
+	tokenService, err := jwt.NewJWTService(suite.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	accessToken, err := tokenService.GenerateAccessToken(outbound.TokenClaims{
+		UserID: user.ID,
+		Email:  user.Email,
+		Role:   user.Role,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	
 	tests := []struct {
 		name            string
-		refreshToken    string
+		authHeader      string
 		expectedStatus  int
 		expectedSuccess bool
 		expectedMessage string
 	}{
 		{
 			name:            "successful logout",
-			refreshToken:    "test-refresh-token",
+			authHeader:      "Bearer " + accessToken,
 			expectedStatus:  http.StatusNoContent,
 			expectedSuccess: true,
 			expectedMessage: "",
 		},
 		{
-			name:            "invalid refresh token",
-			refreshToken:    "invalid-token",
+			name:            "missing auth header",
+			authHeader:      "",
 			expectedStatus:  http.StatusUnauthorized,
 			expectedSuccess: false,
-			expectedMessage: "Invalid refresh token",
+			expectedMessage: "Authorization header required",
 		},
 		{
-			name:            "missing refresh token",
-			refreshToken:    "",
+			name:            "invalid auth header format",
+			authHeader:      "InvalidFormat token",
 			expectedStatus:  http.StatusUnauthorized,
 			expectedSuccess: false,
-			expectedMessage: "Refresh token required",
+			expectedMessage: "Invalid authorization header format",
+		},
+		{
+			name:            "invalid token",
+			authHeader:      "Bearer invalid-token",
+			expectedStatus:  http.StatusUnauthorized,
+			expectedSuccess: false,
+			expectedMessage: "Invalid or expired token",
 		},
 	}
 
@@ -419,12 +442,16 @@ func TestLogoutIntegration(t *testing.T) {
 			req := httptest.NewRequest("POST", "/v1/auth/logout", nil)
 			req.Header.Set("X-Correlation-ID", "test-correlation-id")
 
-			if tt.refreshToken != "" {
-				req.Header.Set("Refresh-Token", tt.refreshToken)
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
 			}
 
+			// Wrap with auth middleware to enforce Authorization checks
+			authMw := middleware.NewAuthMiddleware(tokenService)
+			h := authMw.RequireAuth(suite.authHandler.Logout)
+
 			w := httptest.NewRecorder()
-			suite.authHandler.Logout(w, req)
+			h(w, req)
 
 			resp := w.Result()
 			defer resp.Body.Close()
@@ -457,24 +484,29 @@ func TestMeIntegration(t *testing.T) {
 	defer suite.cleanup(t)
 
 	// Setup test data
-	user := entity.NewUser("test-user-id", "test@example.com", "hashed-password", "")
+	user := entity.NewUser("test-user-id", "Test User", "test@example.com", "hashed-password", "user", "active")
 	if _, err := suite.db.ExecContext(suite.ctx, `
-		INSERT INTO users (id, email, password, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
-	`, user.ID, user.Email, user.Password, user.CreatedAt, user.UpdatedAt); err != nil {
+		INSERT INTO users (id, name, email, password, role, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, user.ID, user.Name, user.Email, user.Password, user.Role, user.Status, user.CreatedAt, user.UpdatedAt); err != nil {
 		t.Fatal(err)
 	}
 
-	// Generate access token
+	// Generate access token using same config as authUseCase
 	tokenService, err := jwt.NewJWTService(suite.config)
 	if err != nil {
 		t.Fatal(err)
 	}
-	accessToken, err := tokenService.GenerateAccessToken(outbound.TokenClaims{UserID: user.ID, Email: user.Email})
+	accessToken, err := tokenService.GenerateAccessToken(outbound.TokenClaims{
+		UserID: user.ID,
+		Email:  user.Email,
+		Role:   user.Role,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	
 	tests := []struct {
 		name            string
 		authHeader      string
@@ -617,24 +649,45 @@ func ensureTestDatabaseAndSchema(dsn string) (*sql.DB, error) {
 }
 
 func ensureSchema(db *sql.DB) error {
-	// users table
+	// Drop existing table if it exists (to handle schema changes)
+	db.Exec(`DROP TABLE IF EXISTS users CASCADE;`)
+	db.Exec(`DROP TABLE IF EXISTS refresh_tokens CASCADE;`)
+
+	// users table with updated schema
 	users := `
-	CREATE TABLE IF NOT EXISTS users (
+	CREATE TABLE users (
 	    id VARCHAR(255) PRIMARY KEY,
+	    name VARCHAR(255) NOT NULL DEFAULT '',
 	    email VARCHAR(255) UNIQUE NOT NULL,
 	    password VARCHAR(255) NOT NULL,
+	    role VARCHAR(20) NOT NULL DEFAULT 'employee',
+	    status VARCHAR(20) NOT NULL DEFAULT 'active',
+	    deleted_at TIMESTAMP NULL,
 	    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+	    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	    CONSTRAINT chk_user_role CHECK (role IN ('admin', 'user', 'superadmin', 'employee')),
+	    CONSTRAINT chk_user_status CHECK (status IN ('active', 'inactive'))
 	);`
 	if _, err := db.Exec(users); err != nil {
 		return fmt.Errorf("create users table: %w", err)
 	}
-	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);`); err != nil {
-		return fmt.Errorf("create users index: %w", err)
+
+	// Create indexes
+	indexes := []string{
+		`CREATE INDEX idx_users_email ON users(email);`,
+		`CREATE INDEX idx_users_role ON users(role);`,
+		`CREATE INDEX idx_users_status ON users(status);`,
+		`CREATE INDEX idx_users_deleted_at ON users(deleted_at);`,
+	}
+
+	for _, idx := range indexes {
+		if _, err := db.Exec(idx); err != nil {
+			return fmt.Errorf("create users index: %w", err)
+		}
 	}
 	// refresh_tokens table with token_hash and revoked
 	refresh := `
-	CREATE TABLE IF NOT EXISTS refresh_tokens (
+	CREATE TABLE refresh_tokens (
 	    id VARCHAR(255) PRIMARY KEY,
 	    user_id VARCHAR(255) NOT NULL,
 	    token_hash BYTEA UNIQUE NOT NULL,
@@ -647,17 +700,19 @@ func ensureSchema(db *sql.DB) error {
 	if _, err := db.Exec(refresh); err != nil {
 		return fmt.Errorf("create refresh_tokens table: %w", err)
 	}
-	if _, err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);`); err != nil {
-		return fmt.Errorf("create idx token_hash: %w", err)
+
+	refreshIndexes := []string{
+		`CREATE UNIQUE INDEX idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);`,
+		`CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);`,
+		`CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);`,
+		`CREATE INDEX idx_refresh_tokens_revoked ON refresh_tokens(revoked);`,
 	}
-	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);`); err != nil {
-		return fmt.Errorf("create idx user_id: %w", err)
+
+	for _, idx := range refreshIndexes {
+		if _, err := db.Exec(idx); err != nil {
+			return fmt.Errorf("create refresh_tokens index: %w", err)
+		}
 	}
-	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);`); err != nil {
-		return fmt.Errorf("create idx expires_at: %w", err)
-	}
-	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_revoked ON refresh_tokens(revoked);`); err != nil {
-		return fmt.Errorf("create idx revoked: %w", err)
-	}
+
 	return nil
 }

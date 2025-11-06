@@ -48,7 +48,7 @@ func (s *JWTService) GenerateAccessToken(claims outbound.TokenClaims) (string, e
 		"user_id": claims.UserID,
 		"email":   claims.Email,
 		"role":    claims.Role,
-		"exp":     time.Now().Add(s.config.AccessTokenTTL).Unix(),
+		"exp":     time.Now().Add(time.Duration(s.config.AccessTokenTTL) * time.Second).Unix(),
 		"iat":     time.Now().Unix(),
 		"type":    "access",
 		}

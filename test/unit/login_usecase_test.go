@@ -42,6 +42,37 @@ func (m *MockUserRepository) Create(ctx context.Context, user *entity.User) erro
 	return args.Error(0)
 }
 
+func (m *MockUserRepository) Update(ctx context.Context, user *entity.User) error {
+	args := m.Called(ctx, user)
+	return args.Error(0)
+}
+
+func (m *MockUserRepository) SoftDelete(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockUserRepository) FindAll(ctx context.Context, offset, limit int, filters outbound.UserFilters) ([]*entity.User, int, error) {
+	args := m.Called(ctx, offset, limit, filters)
+	if args.Get(0) == nil {
+		return nil, args.Int(1), args.Error(2)
+	}
+	return args.Get(0).([]*entity.User), args.Int(1), args.Error(2)
+}
+
+func (m *MockUserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
+	args := m.Called(ctx, email)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockUserRepository) FindByRole(ctx context.Context, role string) ([]*entity.User, error) {
+	args := m.Called(ctx, role)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*entity.User), args.Error(1)
+}
+
 type MockRefreshTokenRepository struct {
 	mock.Mock
 }

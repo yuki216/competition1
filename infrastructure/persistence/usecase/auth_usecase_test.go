@@ -48,6 +48,50 @@ func (m *mockUserRepository) Create(ctx context.Context, user *entity.User) erro
 	return nil
 }
 
+func (m *mockUserRepository) Update(ctx context.Context, user *entity.User) error {
+	if _, exists := m.users[user.ID]; !exists {
+		return outbound.ErrUserNotFound
+	}
+	m.users[user.ID] = user
+	return nil
+}
+
+func (m *mockUserRepository) SoftDelete(ctx context.Context, id string) error {
+	if _, exists := m.users[id]; !exists {
+		return outbound.ErrUserNotFound
+	}
+	// For mock, just remove from the map to simulate soft delete
+	delete(m.users, id)
+	return nil
+}
+
+func (m *mockUserRepository) FindAll(ctx context.Context, offset, limit int, filters outbound.UserFilters) ([]*entity.User, int, error) {
+	var users []*entity.User
+	for _, user := range m.users {
+		users = append(users, user)
+	}
+	return users, len(users), nil
+}
+
+func (m *mockUserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
+	for _, user := range m.users {
+		if user.Email == email {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *mockUserRepository) FindByRole(ctx context.Context, role string) ([]*entity.User, error) {
+	var users []*entity.User
+	for _, user := range m.users {
+		if user.Role == role {
+			users = append(users, user)
+		}
+	}
+	return users, nil
+}
+
 type mockRefreshTokenRepository struct {
 	tokens map[string]*entity.RefreshToken
 }
@@ -191,7 +235,7 @@ func TestAuthUseCase(t *testing.T) {
 	)
 
 	// Create test user
-	testUser := entity.NewUser("user123", "test@example.com", "hashed-password123", "")
+	testUser := entity.NewUser("user123", "Test User", "test@example.com", "hashed-password123", "user", "active")
 	if err := userRepo.Create(ctx, testUser); err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
