@@ -1,0 +1,1086 @@
+openapi: 3.0.3
+info:
+  title: Auth Service API
+  description: Authentication service providing user login, token refresh, logout, and user information endpoints
+  version: 1.0.0
+  contact:
+    name: Auth Service Team
+    email: support@authservice.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8090
+    description: Local development server
+  - url: https://e29d425094dc.ngrok-free.app/
+    description: Production server
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns the health status of the service
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '500':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/login:
+    post:
+      summary: User login
+      description: Authenticate user with email and password
+      operationId: login
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+          headers:
+            Set-Cookie:
+              description: Refresh token cookie
+              schema:
+                type: string
+                example: refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Lax
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/refresh:
+    post:
+      summary: Refresh access token
+      description: Generate new access token using refresh token
+      operationId: refresh
+      tags:
+        - Authentication
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      parameters:
+        - name: Refresh-Token
+          in: header
+          description: Refresh token from header (alternative to cookie)
+          required: false
+          schema:
+            type: string
+            example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        - name: Cookie
+          in: header
+          description: Refresh token from cookie
+          required: false
+          schema:
+            type: string
+            example: refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      responses:
+        '200':
+          description: Token refresh successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/logout:
+    post:
+      summary: User logout
+      description: Revoke all refresh tokens for authenticated user
+      operationId: logout
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Logout successful; no content
+          headers:
+            Set-Cookie:
+              description: Clear refresh token cookie
+              schema:
+                type: string
+                example: refresh_token=; HttpOnly; Secure; SameSite=Lax; Max-Age=0
+        '401':
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/me:
+    get:
+      summary: Get current user information
+      description: Retrieve information about the currently authenticated user
+      operationId: getCurrentUser
+      tags:
+        - User
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /kb/entries:
+    post:
+      summary: Create KB entry (draft)
+      description: Create a knowledge base entry using JSON body. Resulting entry is draft until published.
+      operationId: createKbEntry
+      tags:
+        - KnowledgeBase
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KbEntryCreateRequest'
+      responses:
+        '201':
+          description: KB entry created (draft)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbEntryResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /kb/entries/upload-text:
+    post:
+      summary: Upload text/Markdown for KB entry
+      description: Upload raw text or Markdown as KB content. Optional query params to set metadata. Entry is draft unless publish=true is provided and processing completes.
+      operationId: uploadKbText
+      tags:
+        - KnowledgeBase
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: title
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: tags
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: publish
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema:
+              type: string
+              description: Raw text content
+          text/markdown:
+            schema:
+              type: string
+              description: Markdown content
+      responses:
+        '202':
+          description: Upload accepted. Processing may be asynchronous for large content.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbUploadAcceptedResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /kb/entries/{id}:
+    patch:
+      summary: Update KB entry content/metadata
+      description: Update knowledge base entry fields. Entry remains draft until published.
+      operationId: updateKbEntry
+      tags:
+        - KnowledgeBase
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KbEntryUpdateRequest'
+      responses:
+        '200':
+          description: KB entry updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbEntryResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: KB entry not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /kb/entries/{id}/publish:
+    post:
+      summary: Publish KB entry (chunking + embedding + index)
+      description: Publish KB entry and trigger chunking, embedding, and index refresh. Operation may be synchronous or asynchronous depending on content size.
+      operationId: publishKbEntry
+      tags:
+        - KnowledgeBase
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Entry published successfully (synchronous case)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbPublishResponse'
+        '202':
+          description: Publish accepted (asynchronous)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KbPublishAcceptedResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: KB entry not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/ai/suggest:
+    post:
+      summary: Suggest mitigation based on KB vector search
+      description: Perform Top-K similarity search over KB chunks and return ranked candidates.
+      operationId: aiSuggest
+      tags:
+        - AI
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuggestRequest'
+      responses:
+        '200':
+          description: Suggestion candidates returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuggestResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/ai/suggest/stream:
+    get:
+      summary: SSE stream of suggestion candidates
+      description: Stream suggestion candidates as they are found. Uses text/event-stream.
+      operationId: aiSuggestStream
+      tags:
+        - AI
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: top_k
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: tags
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        '200':
+          description: Event stream of candidates
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE stream with events 'init', repeated 'candidate', optional 'progress', and terminal 'end' or 'error'.
+              examples:
+                sample:
+                  summary: Example SSE stream
+                  value: |
+                    retry: 3000
+                    event: init
+                    data: {"queryId":"q-123","topK":10,"startTime":"2025-01-01T00:00:00Z"}
+                    :heartbeat
+                    event: candidate
+                    data: {"rank":1,"score":0.83,"entry_id":"54c1...","chunk_index":3,"content_snippet":"Step 1: ...","category":"network","tags":["wifi","vpn"]}
+                    event: candidate
+                    data: {"rank":2,"score":0.79,"entry_id":"54c1...","chunk_index":5,"content_snippet":"Step 2: ..."}
+                    event: progress
+                    data: {"retrievedCount":2,"elapsed_ms":180}
+                    :heartbeat
+                    event: end
+                    data: {"totalCandidates":2,"elapsed_ms":420}
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  /v1/tickets/ai-intake:
+    post:
+      summary: Create ticket via AI intake
+      description: Create a new ticket based on AI analysis of the provided description. Applies controlled overrides for category/priority/title if confidence thresholds are met and returns the created ticket with AI insight and override metadata.
+      operationId: aiIntakeCreateTicket
+      tags:
+        - Tickets
+        - AI
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AITicketIntakeRequest'
+      responses:
+        '201':
+          description: Ticket created via AI intake
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AITicketIntakeResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token for authentication
+
+  schemas:
+    AITicketIntakeRequest:
+      type: object
+      properties:
+        description:
+          type: string
+        created_by:
+          type: string
+          format: uuid
+        title:
+          type: string
+        category:
+          type: string
+          enum: [NETWORK, SOFTWARE, HARDWARE, ACCOUNT, OTHER]
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        autoCategorize:
+          type: boolean
+          default: true
+        autoPrioritize:
+          type: boolean
+          default: true
+        autoTitleFromAI:
+          type: boolean
+          default: true
+      required:
+        - description
+        - created_by
+
+    AITicketIntakeResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            ticket:
+              $ref: '#/components/schemas/Ticket'
+            ai_insight:
+              $ref: '#/components/schemas/AIInsight'
+            override_meta:
+              type: array
+              items:
+                $ref: '#/components/schemas/OverrideMetaItem'
+          required:
+            - ticket
+        success:
+          type: boolean
+          example: true
+      required:
+        - data
+        - success
+
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "ticket_20250101120000"
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+        category:
+          type: string
+          enum: [NETWORK, SOFTWARE, HARDWARE, ACCOUNT, OTHER]
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        created_by:
+          type: string
+          format: uuid
+        assigned_to:
+          type: string
+          nullable: true
+        ai_insight:
+          $ref: '#/components/schemas/AIInsight'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - description
+        - status
+        - category
+        - priority
+        - created_by
+        - created_at
+        - updated_at
+
+    AIInsight:
+      type: object
+      properties:
+        text:
+          type: string
+        confidence:
+          type: number
+          format: float
+      required:
+        - text
+        - confidence
+
+    OverrideMetaItem:
+      type: object
+      properties:
+        field:
+          type: string
+          enum: [title, category, priority]
+        source:
+          type: string
+          enum: [AI, USER]
+        value:
+          type: string
+        confidence:
+          type: number
+          format: float
+        reason:
+          type: string
+          description: Explanation for applying or not applying AI override
+      required:
+        - field
+        - source
+    KbEntryCreateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        category:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+      required:
+        - title
+        - content
+
+    KbEntryUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        category:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    KbEntryResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            title:
+              type: string
+            content:
+              type: string
+            status:
+              type: string
+              enum: [draft, active, archived]
+            category:
+              type: string
+            tags:
+              type: array
+              items:
+                type: string
+          required:
+            - id
+            - title
+            - content
+            - status
+        success:
+          type: boolean
+          example: true
+      required:
+        - data
+        - success
+
+    KbUploadAcceptedResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            entry_id:
+              type: string
+              format: uuid
+            job_id:
+              type: string
+              example: job-abc123
+          required:
+            - entry_id
+        success:
+          type: boolean
+          example: true
+      required:
+        - data
+        - success
+
+    KbPublishResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            entry_id:
+              type: string
+              format: uuid
+            status:
+              type: string
+              example: active
+          required:
+            - entry_id
+            - status
+        success:
+          type: boolean
+          example: true
+      required:
+        - data
+        - success
+
+    KbPublishAcceptedResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            entry_id:
+              type: string
+              format: uuid
+            job_id:
+              type: string
+              example: job-xyz789
+          required:
+            - entry_id
+            - job_id
+        success:
+          type: boolean
+          example: true
+      required:
+        - data
+        - success
+
+    SuggestRequest:
+      type: object
+      properties:
+        query:
+          type: string
+        filters:
+          type: object
+          additionalProperties: true
+          description: Optional filter key-values such as category, tags, status
+        top_k:
+          type: integer
+          default: 10
+      required:
+        - query
+
+    SuggestResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            candidates:
+              type: array
+              items:
+                $ref: '#/components/schemas/SuggestCandidate'
+          required:
+            - candidates
+        success:
+          type: boolean
+          example: true
+      required:
+        - data
+        - success
+
+    SuggestCandidate:
+      type: object
+      properties:
+        rank:
+          type: integer
+        score:
+          type: number
+          format: float
+        entry_id:
+          type: string
+          format: uuid
+        chunk_index:
+          type: integer
+        content_snippet:
+          type: string
+        category:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+      required:
+        - rank
+        - score
+        - entry_id
+        - chunk_index
+        - content_snippet
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+      required:
+        - status
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: "demo@example.com"
+          description: User's email address
+        password:
+          type: string
+          format: password
+          example: "Demo1234!"
+          description: User's password
+        remember_me:
+          type: boolean
+          example: false
+          description: Whether to extend refresh token TTL
+        recaptcha_token:
+          type: string
+          example: "03AGdBq25..."
+          description: reCAPTCHA token (optional)
+      required:
+        - email
+        - password
+
+    LoginResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            access_token:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+              description: JWT access token
+            token_type:
+              type: string
+              example: "Bearer"
+              description: Token type
+            expires_in:
+              type: integer
+              example: 3600
+              description: Token expiration time in seconds
+          required:
+            - access_token
+            - token_type
+            - expires_in
+        success:
+          type: boolean
+          example: true
+      required:
+        - data
+        - success
+
+    RefreshRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          description: Refresh token (optional if provided via cookie)
+
+    RefreshResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            access_token:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+              description: New JWT access token
+            token_type:
+              type: string
+              example: "Bearer"
+              description: Token type
+            expires_in:
+              type: integer
+              example: 3600
+              description: Token expiration time in seconds
+          required:
+            - access_token
+            - token_type
+            - expires_in
+        success:
+          type: boolean
+          example: true
+      required:
+        - data
+        - success
+
+
+
+    MeResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: "123e4567-e89b-12d3-a456-426614174000"
+              description: User's unique identifier
+            email:
+              type: string
+              format: email
+              example: "demo@example.com"
+              description: User's email address
+          required:
+            - id
+            - email
+        success:
+          type: boolean
+          example: true
+      required:
+        - data
+        - success
+
+    SuccessResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          nullable: true
+          example: null
+        success:
+          type: boolean
+          example: true
+      required:
+        - success
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "INVALID_CREDENTIALS"
+              description: Error code
+            message:
+              type: string
+              example: "Invalid email or password"
+              description: Human-readable error message
+            details:
+              type: object
+              nullable: true
+              description: Additional error details
+          required:
+            - code
+            - message
+        success:
+          type: boolean
+          example: false
+      required:
+        - error
+        - success
+
+tags:
+  - name: Health
+    description: Health check operations
+  - name: Authentication
+    description: User authentication operations
+  - name: User
+    description: User information operations
+  - name: KnowledgeBase
+    description: Knowledge base operations
+  - name: AI
+    description: AI suggestion and streaming operations
+  - name: Tickets
+    description: Ticket operations (creation, AI intake)

@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go mod tidy:*)",
+      "Bash(go:*)",
+      "Bash(mkdir:*)",
+      "Bash(set:*)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "models": {
+    "glm": {
+      "provider": "anthropic-compatible",
+      "api_key": "628443db87f247b2874d9fa2411c6bdf.Ca1ilMW8CyTOMNb2",
+      "base_url": "https://api.z.ai/api/anthropic"
+    }
+  },
+  "default_model": "glm"
+}
