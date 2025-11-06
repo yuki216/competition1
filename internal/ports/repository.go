@@ -29,20 +29,28 @@ type TicketRepository interface {
 
 // CommentRepository defines the interface for comment persistence
 type CommentRepository interface {
-	// Create saves a new comment
-	Create(ctx context.Context, comment *domain.Comment) error
+    // Create saves a new comment
+    Create(ctx context.Context, comment *domain.Comment) error
 
 	// FindByID retrieves a comment by its ID
 	FindByID(ctx context.Context, id string) (*domain.Comment, error)
 
-	// ListByTicket retrieves all comments for a ticket
-	ListByTicket(ctx context.Context, ticketID string) ([]*domain.Comment, error)
+    // ListByTicket retrieves all comments for a ticket
+    ListByTicket(ctx context.Context, ticketID string) ([]*domain.Comment, error)
 
-	// Update updates an existing comment
-	Update(ctx context.Context, comment *domain.Comment) error
+    // ListByTicketWithPagination retrieves comments for a ticket with pagination
+    // limit specifies the maximum number of comments to return, and offset specifies
+    // the number of comments to skip before starting to collect the result set.
+    ListByTicketWithPagination(ctx context.Context, ticketID string, limit, offset int) ([]*domain.Comment, error)
 
-	// Delete removes a comment
-	Delete(ctx context.Context, id string) error
+    // Update updates an existing comment
+    Update(ctx context.Context, comment *domain.Comment) error
+
+    // Delete removes a comment
+    Delete(ctx context.Context, id string) error
+
+    // CountByTicket returns the total number of comments for a ticket
+    CountByTicket(ctx context.Context, ticketID string) (int, error)
 }
 
 // KnowledgeRepository defines the interface for knowledge base persistence
