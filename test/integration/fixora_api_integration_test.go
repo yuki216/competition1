@@ -611,12 +611,20 @@ func TestKnowledgeBaseAPI(t *testing.T) {
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusCreated {
-			t.Errorf("Expected status %d, got %d", http.StatusCreated, resp.StatusCode)
+			// Read response body to understand the error
+			body, _ := io.ReadAll(resp.Body)
+			t.Errorf("Expected status %d, got %d. Response: %s", http.StatusCreated, resp.StatusCode, string(body))
+		}
+
+		// Read response body
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			t.Fatalf("Failed to read response body: %v", readErr)
 		}
 
 		var entry map[string]interface{}
-		if err := json.NewDecoder(resp.Body).Decode(&entry); err != nil {
-			t.Fatalf("Failed to decode response: %v", err)
+		if err := json.Unmarshal(body, &entry); err != nil {
+			t.Fatalf("Failed to decode response: %v\nResponse body: %s", err, string(body))
 		}
 
 		if entry["title"] != "How to Reset Password" {
@@ -658,12 +666,20 @@ func TestKnowledgeBaseAPI(t *testing.T) {
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			t.Errorf("Expected status %d, got %d", http.StatusOK, resp.StatusCode)
+			// Read response body to understand the error
+			body, _ := io.ReadAll(resp.Body)
+			t.Errorf("Expected status %d, got %d. Response: %s", http.StatusOK, resp.StatusCode, string(body))
+		}
+
+		// Read response body
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			t.Fatalf("Failed to read response body: %v", readErr)
 		}
 
 		var searchResult map[string]interface{}
-		if err := json.NewDecoder(resp.Body).Decode(&searchResult); err != nil {
-			t.Fatalf("Failed to decode response: %v", err)
+		if err := json.Unmarshal(body, &searchResult); err != nil {
+			t.Fatalf("Failed to decode response: %v\nResponse body: %s", err, string(body))
 		}
 
 		if _, ok := searchResult["results"]; !ok {
