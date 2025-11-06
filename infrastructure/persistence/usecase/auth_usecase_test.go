@@ -256,6 +256,15 @@ func TestAuthUseCase(t *testing.T) {
 		if resp.RefreshToken == "" {
 			t.Error("Refresh token should not be empty")
 		}
+		if resp.User.ID != "user123" {
+			t.Errorf("Expected user ID 'user123', got '%s'", resp.User.ID)
+		}
+		if resp.User.Email != "test@example.com" {
+			t.Errorf("Expected email 'test@example.com', got '%s'", resp.User.Email)
+		}
+		if resp.User.Role != "user" {
+			t.Errorf("Expected role 'user', got '%s'", resp.User.Role)
+		}
 	})
 
 	t.Run("LoginInvalidCredentials", func(t *testing.T) {
@@ -329,6 +338,9 @@ func TestAuthUseCase(t *testing.T) {
 		}
 		if resp.Email != "test@example.com" {
 			t.Errorf("Expected email 'test@example.com', got '%s'", resp.Email)
+		}
+		if resp.Role != "user" {
+			t.Errorf("Expected role 'user', got '%s'", resp.Role)
 		}
 	})
 }

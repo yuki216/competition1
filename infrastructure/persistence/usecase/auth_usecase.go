@@ -270,6 +270,11 @@ func (uc *AuthUseCase) Login(ctx context.Context, req inbound.LoginRequest) (*in
 		RefreshToken:     refreshToken,
 		ExpiresIn:        int(uc.accessTokenTTL.Seconds()),
 		RefreshExpiresIn: int(refreshTTL.Seconds()),
+		User: inbound.MeResponse{
+			ID:    user.ID,
+			Email: user.Email,
+			Role:  user.Role,
+		},
 	}, nil
 }
 
@@ -439,6 +444,7 @@ func (uc *AuthUseCase) Me(ctx context.Context, userID string) (*inbound.MeRespon
 	return &inbound.MeResponse{
 		ID:    user.ID,
 		Email: user.Email,
+		Role:  user.Role,
 	}, nil
 }
 
