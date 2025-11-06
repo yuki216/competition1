@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"fixora/internal/domain"
-	"fixora/internal/ports"
+	"github.com/fixora/fixora/internal/domain"
+	"github.com/fixora/fixora/internal/ports"
 )
 
 // KnowledgeUseCase handles knowledge base business logic

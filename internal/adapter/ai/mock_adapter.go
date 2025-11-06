@@ -3,13 +3,12 @@ package ai
 import (
 	"context"
 	"fmt"
-	"math"
 	"math/rand"
 	"strings"
 	"sync"
 	"time"
 
-	"fixora/internal/ports"
+	"github.com/fixora/fixora/internal/ports"
 )
 
 // MockAIService provides a mock implementation of AI services for testing
@@ -344,7 +343,7 @@ func (m *MockAIService) generateMockSuggestion(description string) (string, floa
 			"Move closer to the WiFi router",
 			"Update your network adapter drivers",
 		}
-		return suggestions[rand.Intn(len(suggestions))], 0.75 + rand.Float32()*0.2, "Network"
+		return suggestions[rand.Intn(len(suggestions))], 0.75 + rand.Float64()*0.2, "Network"
 	}
 
 	// Software issues
@@ -355,7 +354,7 @@ func (m *MockAIService) generateMockSuggestion(description string) (string, floa
 			"Clear application cache and temporary files",
 			"Reinstall the application if issues persist",
 		}
-		return suggestions[rand.Intn(len(suggestions))], 0.70 + rand.Float32()*0.2, "Software"
+		return suggestions[rand.Intn(len(suggestions))], 0.70 + rand.Float64()*0.2, "Software"
 	}
 
 	// Hardware issues
@@ -366,7 +365,7 @@ func (m *MockAIService) generateMockSuggestion(description string) (string, floa
 			"Test the device on another computer",
 			"Contact IT support for hardware diagnosis",
 		}
-		return suggestions[rand.Intn(len(suggestions))], 0.65 + rand.Float32()*0.2, "Hardware"
+		return suggestions[rand.Intn(len(suggestions))], 0.65 + rand.Float64()*0.2, "Hardware"
 	}
 
 	// Account issues
@@ -377,7 +376,7 @@ func (m *MockAIService) generateMockSuggestion(description string) (string, floa
 			"Try using a different browser",
 			"Contact IT support for account assistance",
 		}
-		return suggestions[rand.Intn(len(suggestions))], 0.80 + rand.Float32()*0.15, "Account"
+		return suggestions[rand.Intn(len(suggestions))], 0.80 + rand.Float64()*0.15, "Account"
 	}
 
 	// Generic suggestion
@@ -387,7 +386,7 @@ func (m *MockAIService) generateMockSuggestion(description string) (string, floa
 		"Check if the issue is reproducible",
 		"Contact IT support for further assistance",
 	}
-	return suggestions[rand.Intn(len(suggestions))], 0.50 + rand.Float32()*0.2, "General"
+	return suggestions[rand.Intn(len(suggestions))], 0.50 + rand.Float64()*0.2, "General"
 }
 
 func (m *MockAIService) generateMockCandidates(description string) []ports.CandidateData {

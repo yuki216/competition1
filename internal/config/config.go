@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"fixora/internal/ports"
+	"github.com/fixora/fixora/internal/ports"
 )
 
 // Config represents application configuration

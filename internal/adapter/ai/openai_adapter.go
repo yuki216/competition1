@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
-	"fixora/internal/ports"
+	"github.com/fixora/fixora/internal/ports"
 )
 
 // OpenAIAdapter implements AI services using OpenAI APIs
@@ -439,7 +440,6 @@ func calculateConfidence(content string, tokenCount int) float64 {
 
 func determineCategory(content, description string) string {
 	descLower := strings.ToLower(description)
-	contentLower := strings.ToLower(content)
 
 	if strings.Contains(descLower, "wifi") || strings.Contains(descLower, "network") {
 		return "Network"

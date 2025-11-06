@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"fixora/internal/domain"
-	"fixora/internal/usecase"
+	"github.com/fixora/fixora/internal/domain"
+	"github.com/fixora/fixora/internal/usecase"
 
 	"github.com/gorilla/mux"
 )

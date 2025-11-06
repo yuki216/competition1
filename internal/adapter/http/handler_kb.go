@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
-	"fixora/internal/domain"
-	"fixora/internal/usecase"
+	"github.com/fixora/fixora/internal/domain"
+	"github.com/fixora/fixora/internal/usecase"
 
 	"github.com/gorilla/mux"
 )

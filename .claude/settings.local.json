@@ -4,7 +4,9 @@
       "Bash(go mod tidy:*)",
       "Bash(go:*)",
       "Bash(mkdir:*)",
-      "Bash(set:*)"
+      "Bash(set:*)",
+      "Bash(find:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

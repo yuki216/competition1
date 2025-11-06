@@ -6,10 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
-	"fixora/internal/domain"
-	"fixora/internal/ports"
+	"github.com/fixora/fixora/internal/domain"
+	"github.com/fixora/fixora/internal/ports"
 )
 
 // PostgresKnowledgeRepository implements KnowledgeRepository using PostgreSQL with pgvector

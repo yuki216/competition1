@@ -6,7 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"fixora/internal/usecase"
+	"github.com/fixora/fixora/internal/domain"
+	"github.com/fixora/fixora/internal/usecase"
 
 	"github.com/gorilla/mux"
 )
@@ -153,7 +154,6 @@ func (h *AIHandler) GenerateEmbedding(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var response interface{}
-	var err error
 
 	if len(req.Texts) > 0 {
 		// Batch embedding generation

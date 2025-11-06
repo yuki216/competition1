@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"fixora/internal/ports"
+	"github.com/fixora/fixora/internal/ports"
 )
 
 // Streamer manages Server-Sent Events streaming

@@ -2,7 +2,8 @@ package ports
 
 import (
 	"context"
-	"fixora/internal/domain"
+	"time"
+	"github.com/fixora/fixora/internal/domain"
 )
 
 // TicketRepository defines the interface for ticket persistence

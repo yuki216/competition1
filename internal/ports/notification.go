@@ -2,7 +2,7 @@ package ports
 
 import (
 	"context"
-	"fixora/internal/domain"
+	"github.com/fixora/fixora/internal/domain"
 )
 
 // NotificationService defines the interface for notification services
@@ -238,10 +238,10 @@ func timestampString() string {
 
 // Notification errors
 const (
-	ErrNotificationNotFound  = "notification not found"
-	ErrInvalidRecipient     = "invalid recipient"
-	ErrChannelUnavailable   = "notification channel unavailable"
-	ErrRateLimitExceeded    = "notification rate limit exceeded"
-	ErrNotificationFailed   = "notification delivery failed"
-	ErrEventHandlingFailed  = "event handling failed"
+	ErrNotificationNotFound    = "notification not found"
+	ErrInvalidRecipient       = "invalid recipient"
+	ErrChannelUnavailable     = "notification channel unavailable"
+	ErrNotificationRateLimit  = "notification rate limit exceeded"
+	ErrNotificationFailed     = "notification delivery failed"
+	ErrEventHandlingFailed    = "event handling failed"
 )

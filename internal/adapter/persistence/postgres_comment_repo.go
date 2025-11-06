@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"fixora/internal/domain"
-	"fixora/internal/ports"
+	"github.com/fixora/fixora/internal/domain"
+	"github.com/fixora/fixora/internal/ports"
 )
 
 // PostgresCommentRepository implements CommentRepository using PostgreSQL

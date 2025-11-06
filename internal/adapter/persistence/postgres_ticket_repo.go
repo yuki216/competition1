@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"fixora/internal/domain"
-	"fixora/internal/ports"
+	"github.com/fixora/fixora/internal/domain"
+	"github.com/fixora/fixora/internal/ports"
 )
 
 // PostgresTicketRepository implements TicketRepository using PostgreSQL

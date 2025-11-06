@@ -3,10 +3,9 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"fixora/internal/domain"
-	"fixora/internal/ports"
+	"github.com/fixora/fixora/internal/domain"
+	"github.com/fixora/fixora/internal/ports"
 )
 
 // CreateTicketRequest represents the request to create a ticket

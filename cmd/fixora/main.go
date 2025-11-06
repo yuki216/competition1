@@ -12,12 +12,13 @@ import (
 	"syscall"
 	"time"
 
-	"fixora/internal/adapter/ai"
-	"fixora/internal/adapter/http"
-	"fixora/internal/adapter/persistence"
-	"fixora/internal/config"
-	"fixora/internal/infra/sse"
-	"fixora/internal/usecase"
+	"github.com/fixora/fixora/internal/adapter/ai"
+	httpadapter "github.com/fixora/fixora/internal/adapter/http"
+	"github.com/fixora/fixora/internal/adapter/persistence"
+	"github.com/fixora/fixora/internal/config"
+	"github.com/fixora/fixora/internal/infra/sse"
+	"github.com/fixora/fixora/internal/ports"
+	"github.com/fixora/fixora/internal/usecase"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
@@ -32,10 +33,9 @@ var (
 func main() {
 	// Parse command line flags
 	var (
-		configFile = flag.String("config", "", "Configuration file path")
-		version    = flag.Bool("version", false, "Show version information")
-		migrate    = flag.Bool("migrate", false, "Run database migrations and exit")
-		seed       = flag.Bool("seed", false, "Seed database with sample data and exit")
+		version = flag.Bool("version", false, "Show version information")
+		migrate = flag.Bool("migrate", false, "Run database migrations and exit")
+		seed    = flag.Bool("seed", false, "Seed database with sample data and exit")
 	)
 	flag.Parse()
 
@@ -261,15 +261,15 @@ type UseCases struct {
 }
 
 // initHTTPServer initializes the HTTP server
-func initHTTPServer(cfg *config.Config, useCases UseCases) *http.Server {
-	serverConfig := http.ServerConfig{
+func initHTTPServer(cfg *config.Config, useCases UseCases) *httpadapter.Server {
+	serverConfig := httpadapter.ServerConfig{
 		Port:         cfg.Server.Port,
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  cfg.Server.IdleTimeout,
 	}
 
-	return http.NewServer(serverConfig, useCases.Ticket, useCases.AI, useCases.Knowledge)
+	return httpadapter.NewServer(serverConfig, useCases.Ticket, useCases.AI, useCases.Knowledge)
 }
 
 // runMigrations runs database migrations

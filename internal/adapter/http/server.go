@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"fixora/internal/usecase"
+	"github.com/fixora/fixora/internal/usecase"
 
 	"github.com/gorilla/mux"
 )
@@ -84,6 +84,11 @@ func (s *Server) Start() error {
 func (s *Server) Shutdown(ctx context.Context) error {
 	log.Println("Shutting down HTTP server...")
 	return s.server.Shutdown(ctx)
+}
+
+// GetHandler returns the HTTP handler for testing purposes
+func (s *Server) GetHandler() http.Handler {
+	return s.server.Handler
 }
 
 // Middleware
