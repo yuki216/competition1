@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(go mod tidy:*)",
-      "Bash(go:*)"
+      "Bash(go:*)",
+      "Bash(mkdir:*)",
+      "Bash(set:*)"
     ],
     "deny": [],
     "ask": []
