@@ -1,17 +1,17 @@
 package main
 
 import (
-	"bufio"
-	"database/sql"
-	"errors"
-	"flag"
-	"fmt"
-	"log"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
-	"time"
+    "bufio"
+    "database/sql"
+    "errors"
+    "flag"
+    "fmt"
+    "log"
+    "os"
+    "path/filepath"
+    "sort"
+    "strings"
+    "time"
 
 	_ "github.com/lib/pq"
 )
@@ -70,13 +70,24 @@ func main() {
 }
 
 func ensureSchemaMigrations(db *sql.DB) error {
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS schema_migrations (
-			version INTEGER PRIMARY KEY,
-			name TEXT NOT NULL,
-			applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`)
-	return err
+    if _, err := db.Exec(`
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version INTEGER,
+            name TEXT NOT NULL,
+            applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )`); err != nil {
+        return err
+    }
+
+    // Ensure composite primary key (version, name)
+    // Drop existing single-column PK if present, then add composite PK
+    if _, err := db.Exec(`ALTER TABLE schema_migrations DROP CONSTRAINT IF EXISTS schema_migrations_pkey`); err != nil {
+        return err
+    }
+    if _, err := db.Exec(`ALTER TABLE schema_migrations ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (version, name)`); err != nil {
+        return err
+    }
+    return nil
 }
 
 func loadMigrationFiles(dir string) ([]migrationFile, error) {
@@ -131,56 +142,56 @@ func parseVersionAndName(filename string) (int, string, error) {
 	return ver, parts[1], nil
 }
 
-func alreadyApplied(db *sql.DB, version int) (bool, error) {
-	var exists bool
-	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=$1)", version).Scan(&exists)
-	return exists, err
+func alreadyApplied(db *sql.DB, version int, name string) (bool, error) {
+    var exists bool
+    err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=$1 AND name=$2)", version, name).Scan(&exists)
+    return exists, err
 }
 
 func markApplied(db *sql.DB, version int, name string) error {
-	_, err := db.Exec("INSERT INTO schema_migrations(version, name, applied_at) VALUES($1,$2,$3)", version, name, time.Now())
-	return err
+    _, err := db.Exec("INSERT INTO schema_migrations(version, name, applied_at) VALUES($1,$2,$3)", version, name, time.Now())
+    return err
 }
 
-func unmarkApplied(db *sql.DB, version int) error {
-	_, err := db.Exec("DELETE FROM schema_migrations WHERE version=$1", version)
-	return err
+func unmarkApplied(db *sql.DB, version int, name string) error {
+    _, err := db.Exec("DELETE FROM schema_migrations WHERE version=$1 AND name=$2", version, name)
+    return err
 }
 
 func applyUp(db *sql.DB, files []migrationFile) error {
-	for _, f := range files {
-		if f.kind != "up" { continue }
-		applied, err := alreadyApplied(db, f.version)
-		if err != nil { return err }
-		if applied { continue }
+    for _, f := range files {
+        if f.kind != "up" { continue }
+        applied, err := alreadyApplied(db, f.version, f.name)
+        if err != nil { return err }
+        if applied { continue }
 
-		log.Printf("Applying up %03d: %s", f.version, f.name)
-		if err := execSQLFile(db, f.path); err != nil {
-			return fmt.Errorf("failed applying %s: %w", f.path, err)
-		}
-		if err := markApplied(db, f.version, f.name); err != nil { return err }
-	}
-	return nil
+        log.Printf("Applying up %03d: %s", f.version, f.name)
+        if err := execSQLFile(db, f.path); err != nil {
+            return fmt.Errorf("failed applying %s: %w", f.path, err)
+        }
+        if err := markApplied(db, f.version, f.name); err != nil { return err }
+    }
+    return nil
 }
 
 func applyDown(db *sql.DB, files []migrationFile) error {
-	// collect down files and sort desc
-	var downs []migrationFile
-	for _, f := range files { if f.kind == "down" { downs = append(downs, f) } }
-	sort.Slice(downs, func(i, j int) bool { return downs[i].version > downs[j].version })
+    // collect down files and sort desc
+    var downs []migrationFile
+    for _, f := range files { if f.kind == "down" { downs = append(downs, f) } }
+    sort.Slice(downs, func(i, j int) bool { return downs[i].version > downs[j].version })
 
-	for _, f := range downs {
-		applied, err := alreadyApplied(db, f.version)
-		if err != nil { return err }
-		if !applied { continue }
+    for _, f := range downs {
+        applied, err := alreadyApplied(db, f.version, f.name)
+        if err != nil { return err }
+        if !applied { continue }
 
-		log.Printf("Reverting down %03d: %s", f.version, f.name)
-		if err := execSQLFile(db, f.path); err != nil {
-			return fmt.Errorf("failed reverting %s: %w", f.path, err)
-		}
-		if err := unmarkApplied(db, f.version); err != nil { return err }
-	}
-	return nil
+        log.Printf("Reverting down %03d: %s", f.version, f.name)
+        if err := execSQLFile(db, f.path); err != nil {
+            return fmt.Errorf("failed reverting %s: %w", f.path, err)
+        }
+        if err := unmarkApplied(db, f.version, f.name); err != nil { return err }
+    }
+    return nil
 }
 
 func execSQLFile(db *sql.DB, path string) error {

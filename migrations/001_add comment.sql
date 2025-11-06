@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS knowledge_entries (
     version INT NOT NULL DEFAULT 1,
     created_by UUID NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Knowledge chunks table for vector search
