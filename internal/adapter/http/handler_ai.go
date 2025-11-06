@@ -1,14 +1,15 @@
 package http
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"time"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "time"
 
-	"fixora/internal/usecase"
+    "fixora/internal/domain"
+    "fixora/internal/usecase"
 
-	"github.com/gorilla/mux"
+    "github.com/gorilla/mux"
 )
 
 // AIHandler handles HTTP requests for AI services
@@ -25,13 +26,15 @@ func NewAIHandler(aiUseCase *usecase.AIUseCase) *AIHandler {
 
 // RegisterRoutes registers AI routes
 func (h *AIHandler) RegisterRoutes(router *mux.Router) {
-	router.HandleFunc("/api/v1/ai/suggest", h.GetSuggestion).Methods("POST")
-	router.HandleFunc("/api/v1/ai/suggest/stream", h.StreamSuggestion).Methods("GET")
-	router.HandleFunc("/api/v1/ai/kb/search", h.SearchKnowledgeBase).Methods("POST")
-	router.HandleFunc("/api/v1/ai/embedding", h.GenerateEmbedding).Methods("POST")
-	router.HandleFunc("/api/v1/ai/analyze", h.AnalyzeTicketContent).Methods("POST")
-	router.HandleFunc("/api/v1/ai/health", h.HealthCheck).Methods("GET")
-	router.HandleFunc("/api/v1/ai/info", h.GetProviderInfo).Methods("GET")
+    router.HandleFunc("/api/v1/ai/suggest", h.GetSuggestion).Methods("POST")
+    router.HandleFunc("/api/v1/ai/suggest/stream", h.StreamSuggestion).Methods("GET")
+    router.HandleFunc("/api/v1/ai/kb/search", h.SearchKnowledgeBase).Methods("POST")
+    router.HandleFunc("/api/v1/ai/embedding", h.GenerateEmbedding).Methods("POST")
+    router.HandleFunc("/api/v1/ai/analyze", h.AnalyzeTicketContent).Methods("POST")
+    router.HandleFunc("/api/v1/ai/health", h.HealthCheck).Methods("GET")
+    router.HandleFunc("/api/v1/ai/info", h.GetProviderInfo).Methods("GET")
+    // AI-driven ticket intake
+    router.HandleFunc("/api/v1/tickets/ai-intake", h.AIIntakeCreateTicket).Methods("POST")
 }
 
 // GetSuggestion handles AI suggestion requests
@@ -217,7 +220,7 @@ func (h *AIHandler) AnalyzeTicketContent(w http.ResponseWriter, r *http.Request)
 
 // HealthCheck handles AI service health check
 func (h *AIHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
-	err := h.aiUseCase.ValidateAIProvider(r.Context())
+    err := h.aiUseCase.ValidateAIProvider(r.Context())
 
 	response := map[string]interface{}{
 		"healthy": err == nil,
@@ -237,10 +240,44 @@ func (h *AIHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 
 // GetProviderInfo returns AI provider information
 func (h *AIHandler) GetProviderInfo(w http.ResponseWriter, r *http.Request) {
-	info := h.aiUseCase.GetAIProviderInfo(r.Context())
+    info := h.aiUseCase.GetAIProviderInfo(r.Context())
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(info)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(info)
+}
+
+// AIIntakeCreateTicket handles AI-driven ticket intake and ticket creation
+func (h *AIHandler) AIIntakeCreateTicket(w http.ResponseWriter, r *http.Request) {
+    var req usecase.AITicketIntakeRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid request body", http.StatusBadRequest)
+        return
+    }
+
+    // Default auto flags when field not provided
+    if req.Title == "" {
+        req.AutoTitleFromAI = true
+    }
+    if req.Category == "" {
+        req.AutoCategorize = true
+    }
+    if req.Priority == "" {
+        req.AutoPrioritize = true
+    }
+
+    createdBy := r.Header.Get("X-User-ID")
+    if createdBy == "" {
+        createdBy = "default-user"
+    }
+
+    res, err := h.aiUseCase.IntakeCreateTicket(r.Context(), req, createdBy)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(res)
 }
 
 // Helper methods for Server-Sent Events

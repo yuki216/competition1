@@ -6,14 +6,17 @@ import (
 
 // AISuggestionService defines the interface for AI suggestion services
 type AISuggestionService interface {
-	// SuggestMitigation provides AI-powered mitigation suggestions
-	SuggestMitigation(ctx context.Context, description string) (SuggestionResult, error)
+    // SuggestMitigation provides AI-powered mitigation suggestions
+    SuggestMitigation(ctx context.Context, description string) (SuggestionResult, error)
 
-	// StreamSuggestionMitigation provides streaming AI suggestions
-	StreamSuggestionMitigation(ctx context.Context, description string) (<-chan SuggestionEvent, error)
+    // StreamSuggestionMitigation provides streaming AI suggestions
+    StreamSuggestionMitigation(ctx context.Context, description string) (<-chan SuggestionEvent, error)
 
-	// ValidateProvider checks if the AI service is available
-	ValidateProvider(ctx context.Context) error
+    // ValidateProvider checks if the AI service is available
+    ValidateProvider(ctx context.Context) error
+
+    // PredictAttributes predicts ticket title, category, and priority from description
+    PredictAttributes(ctx context.Context, description string) (PredictedAttributes, error)
 }
 
 // AITrainingService defines the interface for AI training services
@@ -74,10 +77,10 @@ type SuggestionResult struct {
 
 // SuggestionEvent represents a streaming suggestion event
 type SuggestionEvent struct {
-	Type    string      `json:"type"`    // init, candidate, progress, end, error
-	QueryID string      `json:"query_id"`
-	Data    interface{} `json:"data"`
-	Error   string      `json:"error,omitempty"`
+    Type    string      `json:"type"`    // init, candidate, progress, end, error
+    QueryID string      `json:"query_id"`
+    Data    interface{} `json:"data"`
+    Error   string      `json:"error,omitempty"`
 }
 
 // CandidateData represents a suggestion candidate
@@ -98,8 +101,22 @@ type ProgressData struct {
 
 // EndData represents stream completion
 type EndData struct {
-	TotalCandidates int   `json:"total_candidates"`
-	ElapsedMs       int64 `json:"elapsed_ms"`
+    TotalCandidates int   `json:"total_candidates"`
+    ElapsedMs       int64 `json:"elapsed_ms"`
+}
+
+// PredictedAttributes represents AI predictions for ticket fields
+type PredictedAttributes struct {
+    Title    FieldPrediction `json:"title"`
+    Category FieldPrediction `json:"category"`
+    Priority FieldPrediction `json:"priority"`
+}
+
+// FieldPrediction represents a predicted value with confidence
+type FieldPrediction struct {
+    Value      string  `json:"value"`
+    Confidence float64 `json:"confidence"`
+    Source     string  `json:"source,omitempty"` // e.g., provider name
 }
 
 // TicketTrainingData represents training data from resolved tickets

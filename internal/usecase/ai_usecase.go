@@ -11,11 +11,11 @@ import (
 
 // AIUseCase handles AI-related business logic
 type AIUseCase struct {
-	aiService     ports.AISuggestionService
-	embeddings    ports.EmbeddingProvider
-	knowledgeRepo ports.KnowledgeRepository
-	ticketRepo    ports.TicketRepository
-	training      ports.AITrainingService
+    aiService     ports.AISuggestionService
+    embeddings    ports.EmbeddingProvider
+    knowledgeRepo ports.KnowledgeRepository
+    ticketRepo    ports.TicketRepository
+    training      ports.AITrainingService
 }
 
 // NewAIUseCase creates a new AI use case
@@ -377,6 +377,215 @@ func lower(s string) string {
 }
 
 func contains(s, substr string) bool {
-	// Implementation would use strings.Contains()
-	return true
+    // Implementation would use strings.Contains()
+    return true
+}
+
+// AI Intake DTOs and logic
+
+// AITicketIntakeRequest represents the request payload for AI-driven ticket intake
+type AITicketIntakeRequest struct {
+    Description     string `json:"description"`
+    Title           string `json:"title,omitempty"`
+    Category        domain.TicketCategory `json:"category,omitempty"`
+    Priority        domain.TicketPriority `json:"priority,omitempty"`
+    AutoCategorize  bool   `json:"autoCategorize"`
+    AutoPrioritize  bool   `json:"autoPrioritize"`
+    AutoTitleFromAI bool   `json:"autoTitleFromAI"`
+}
+
+// OverrideMetaItem describes how a field was set during intake
+type OverrideMetaItem struct {
+    Field      string  `json:"field"`
+    Source     string  `json:"source"` // user | ai | default
+    Value      string  `json:"value"`
+    Confidence float64 `json:"confidence,omitempty"`
+    Applied    bool    `json:"applied"`
+}
+
+// AITicketIntakeResponse represents the result of AI-driven ticket intake
+type AITicketIntakeResponse struct {
+    Ticket      *domain.Ticket        `json:"ticket"`
+    AIInsight   *ports.SuggestionResult `json:"ai_insight,omitempty"`
+    OverrideMeta []OverrideMetaItem   `json:"override_meta"`
+}
+
+// IntakeCreateTicket creates a ticket using AI predictions to auto-fill fields
+func (uc *AIUseCase) IntakeCreateTicket(ctx context.Context, req AITicketIntakeRequest, createdBy string) (*AITicketIntakeResponse, error) {
+    if req.Description == "" {
+        return nil, fmt.Errorf("description is required")
+    }
+    if createdBy == "" {
+        return nil, fmt.Errorf("created_by is required from auth context")
+    }
+
+    // Fetch AI predictions
+    var preds ports.PredictedAttributes
+    if uc.aiService != nil {
+        p, err := uc.aiService.PredictAttributes(ctx, req.Description)
+        if err == nil {
+            preds = p
+        }
+    }
+
+    // Confidence thresholds
+    const titleThreshold = 0.60
+    const catThreshold = 0.70
+    const prioThreshold = 0.70
+
+    overrideMeta := make([]OverrideMetaItem, 0, 3)
+
+    // Title resolution
+    var title string
+    if req.Title != "" {
+        title = req.Title
+        overrideMeta = append(overrideMeta, OverrideMetaItem{
+            Field:   "title",
+            Source:  "user",
+            Value:   title,
+            Applied: true,
+        })
+    } else if req.AutoTitleFromAI && preds.Title.Value != "" && preds.Title.Confidence >= titleThreshold {
+        title = preds.Title.Value
+        overrideMeta = append(overrideMeta, OverrideMetaItem{
+            Field:      "title",
+            Source:     "ai",
+            Value:      title,
+            Confidence: preds.Title.Confidence,
+            Applied:    true,
+        })
+    } else {
+        title = defaultTitleFromDescription(req.Description)
+        overrideMeta = append(overrideMeta, OverrideMetaItem{
+            Field:   "title",
+            Source:  "default",
+            Value:   title,
+            Applied: true,
+        })
+    }
+
+    // Category resolution
+    var category domain.TicketCategory
+    if req.Category != "" {
+        category = req.Category
+        overrideMeta = append(overrideMeta, OverrideMetaItem{
+            Field:   "category",
+            Source:  "user",
+            Value:   string(category),
+            Applied: true,
+        })
+    } else if req.AutoCategorize && preds.Category.Value != "" && preds.Category.Confidence >= catThreshold {
+        category = normalizeCategory(preds.Category.Value)
+        overrideMeta = append(overrideMeta, OverrideMetaItem{
+            Field:      "category",
+            Source:     "ai",
+            Value:      string(category),
+            Confidence: preds.Category.Confidence,
+            Applied:    true,
+        })
+    } else {
+        category = domain.TicketCategoryOther
+        overrideMeta = append(overrideMeta, OverrideMetaItem{
+            Field:   "category",
+            Source:  "default",
+            Value:   string(category),
+            Applied: true,
+        })
+    }
+
+    // Priority resolution
+    var priority domain.TicketPriority
+    if req.Priority != "" {
+        priority = req.Priority
+        overrideMeta = append(overrideMeta, OverrideMetaItem{
+            Field:   "priority",
+            Source:  "user",
+            Value:   string(priority),
+            Applied: true,
+        })
+    } else if req.AutoPrioritize && preds.Priority.Value != "" && preds.Priority.Confidence >= prioThreshold {
+        priority = normalizePriority(preds.Priority.Value)
+        overrideMeta = append(overrideMeta, OverrideMetaItem{
+            Field:      "priority",
+            Source:     "ai",
+            Value:      string(priority),
+            Confidence: preds.Priority.Confidence,
+            Applied:    true,
+        })
+    } else {
+        priority = domain.TicketPriorityMedium
+        overrideMeta = append(overrideMeta, OverrideMetaItem{
+            Field:   "priority",
+            Source:  "default",
+            Value:   string(priority),
+            Applied: true,
+        })
+    }
+
+    // Create ticket
+    ticket := domain.NewTicket(title, req.Description, category, priority, createdBy)
+
+    // Optionally attach AI insight
+    var insight *ports.SuggestionResult
+    if uc.aiService != nil {
+        if s, err := uc.aiService.SuggestMitigation(ctx, req.Description); err == nil && s.Confidence >= 0.4 {
+            ticket.SetAIInsight(s.Suggestion, s.Confidence)
+            insight = &s
+        }
+    }
+
+    // Persist ticket
+    if uc.ticketRepo == nil {
+        return nil, fmt.Errorf("ticket repository not available")
+    }
+    if err := uc.ticketRepo.Create(ctx, ticket); err != nil {
+        return nil, fmt.Errorf("failed to create ticket: %w", err)
+    }
+
+    return &AITicketIntakeResponse{
+        Ticket:       ticket,
+        AIInsight:    insight,
+        OverrideMeta: overrideMeta,
+    }, nil
+}
+
+// Helpers for normalization
+func defaultTitleFromDescription(desc string) string {
+    if len(desc) == 0 {
+        return "Issue reported"
+    }
+    if len(desc) <= 60 {
+        return desc
+    }
+    return desc[:60] + "..."
+}
+
+func normalizeCategory(s string) domain.TicketCategory {
+    switch lower(s) {
+    case "network":
+        return domain.TicketCategoryNetwork
+    case "software":
+        return domain.TicketCategorySoftware
+    case "hardware":
+        return domain.TicketCategoryHardware
+    case "account":
+        return domain.TicketCategoryAccount
+    default:
+        return domain.TicketCategoryOther
+    }
+}
+
+func normalizePriority(s string) domain.TicketPriority {
+    switch lower(s) {
+    case "low":
+        return domain.TicketPriorityLow
+    case "medium":
+        return domain.TicketPriorityMedium
+    case "high":
+        return domain.TicketPriorityHigh
+    case "critical":
+        return domain.TicketPriorityCritical
+    default:
+        return domain.TicketPriorityMedium
+    }
 }

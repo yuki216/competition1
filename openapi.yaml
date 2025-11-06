@@ -525,7 +525,7 @@ paths:
   /v1/tickets/ai-intake:
     post:
       summary: Create ticket via AI intake
-      description: Create a new ticket based on AI analysis of the provided description. Applies controlled overrides for category/priority/title if confidence thresholds are met and returns the created ticket with AI insight and override metadata.
+      description: Create a new ticket based on AI analysis of the provided description. Applies controlled overrides for category/priority/title if confidence thresholds are met and returns the created ticket with AI insight and override metadata. The created_by of the ticket is derived from the authenticated user (JWT bearer token) and is not required in the request body.
       operationId: aiIntakeCreateTicket
       tags:
         - Tickets
@@ -538,6 +538,15 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AITicketIntakeRequest'
+            examples:
+              sample:
+                summary: Contoh request AI Intake
+                value:
+                  description: "Laptop tidak bisa connect Wi-Fi sejak pagi, sudah coba restart namun tetap gagal."
+                  title: "Wi-Fi tidak bisa connect"
+                  autoCategorize: true
+                  autoPrioritize: true
+                  autoTitleFromAI: true
       responses:
         '201':
           description: Ticket created via AI intake
@@ -545,6 +554,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AITicketIntakeResponse'
+              examples:
+                sample:
+                  summary: Contoh response AI Intake (berhasil)
+                  value:
+                    data:
+                      ticket:
+                        id: "ticket_20250101123045"
+                        title: "Wi-Fi gagal terhubung di laptop"
+                        description: "Laptop tidak bisa connect Wi-Fi sejak pagi, sudah coba restart namun tetap gagal."
+                        status: "OPEN"
+                        category: "NETWORK"
+                        priority: "HIGH"
+                        created_by: "123e4567-e89b-12d3-a456-426614174000"
+                        assigned_to: null
+                        ai_insight:
+                          text: "Coba forget network kemudian sambungkan ulang. Jika tetap gagal, reset adapter Wi-Fi dan periksa driver."
+                          confidence: 0.82
+                        created_at: "2025-01-01T12:30:45Z"
+                        updated_at: "2025-01-01T12:30:45Z"
+                      ai_insight:
+                        text: "Coba forget network kemudian sambungkan ulang. Jika tetap gagal, reset adapter Wi-Fi dan periksa driver."
+                        confidence: 0.82
+                      override_meta:
+                        - field: "category"
+                          source: "AI"
+                          value: "NETWORK"
+                          confidence: 0.91
+                          reason: "Prediksi kategori dengan confidence tinggi berdasarkan kata kunci 'Wi-Fi'"
+                        - field: "priority"
+                          source: "AI"
+                          value: "HIGH"
+                          confidence: 0.76
+                          reason: "Prioritas ditingkatkan karena masalah berdampak pada konektivitas kerja"
+                        - field: "title"
+                          source: "AI"
+                          value: "Wi-Fi gagal terhubung di laptop"
+                          confidence: 0.65
+                          reason: "Ringkasan judul otomatis dari deskripsi"
+                    success: true
         '400':
           description: Invalid request data
           content:
@@ -584,9 +632,6 @@ components:
       properties:
         description:
           type: string
-        created_by:
-          type: string
-          format: uuid
         title:
           type: string
         category:
@@ -606,7 +651,8 @@ components:
           default: true
       required:
         - description
-        - created_by
+      description: |
+        Request body for AI Intake. The created_by for the resulting ticket is derived from the authenticated user (JWT bearer token) and MUST NOT be provided by clients. Clients only need to send description and optional flags/fields; the server will populate created_by from the auth context.
 
     AITicketIntakeResponse:
       type: object

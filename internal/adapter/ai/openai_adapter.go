@@ -1,15 +1,16 @@
 package ai
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"time"
+    "bytes"
+    "context"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+    "time"
+    "strings"
 
-	"fixora/internal/ports"
+    "fixora/internal/ports"
 )
 
 // OpenAIAdapter implements AI services using OpenAI APIs
@@ -198,6 +199,31 @@ Be concise and practical. Focus on common IT issues and solutions.
 		Source:     "openai",
 		UsedCache:  false,
 	}, nil
+}
+
+// PredictAttributes predicts title, category, and priority based on description using heuristics.
+func (s *OpenAISuggestionService) PredictAttributes(ctx context.Context, description string) (ports.PredictedAttributes, error) {
+    title := oaGenerateTitle(description)
+    category := determineCategory(title, description)
+    priority := oaEstimatePriority(description)
+
+    return ports.PredictedAttributes{
+        Title: ports.FieldPrediction{
+            Value:      title,
+            Confidence: 0.68,
+            Source:     "openai-heuristic",
+        },
+        Category: ports.FieldPrediction{
+            Value:      category,
+            Confidence: 0.72,
+            Source:     "openai-heuristic",
+        },
+        Priority: ports.FieldPrediction{
+            Value:      priority,
+            Confidence: 0.70,
+            Source:     "openai-heuristic",
+        },
+    }, nil
 }
 
 // StreamSuggestionMitigation provides streaming AI suggestions (simplified implementation)
@@ -455,4 +481,41 @@ func determineCategory(content, description string) string {
 	}
 
 	return "General"
+}
+
+// Helper: generate concise title from description
+func oaGenerateTitle(desc string) string {
+    t := strings.TrimSpace(desc)
+    if t == "" {
+        return "Issue reported"
+    }
+    words := strings.Fields(t)
+    if len(words) <= 6 {
+        return strings.Join(words, " ")
+    }
+    return strings.Join(words[:6], " ") + "..."
+}
+
+// Helper: estimate priority via keywords
+func oaEstimatePriority(desc string) string {
+    d := strings.ToLower(desc)
+    critical := []string{"down", "outage", "cannot access", "security breach", "data loss"}
+    for _, k := range critical {
+        if strings.Contains(d, k) {
+            return "CRITICAL"
+        }
+    }
+    high := []string{"urgent", "crash", "error", "failed", "not working"}
+    for _, k := range high {
+        if strings.Contains(d, k) {
+            return "HIGH"
+        }
+    }
+    low := []string{"suggestion", "feature request", "minor", "typo"}
+    for _, k := range low {
+        if strings.Contains(d, k) {
+            return "LOW"
+        }
+    }
+    return "MEDIUM"
 }

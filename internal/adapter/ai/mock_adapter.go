@@ -411,6 +411,43 @@ func (m *MockAIService) generateMockCandidates(description string) []ports.Candi
 	return candidates
 }
 
+// Helper: generate a concise title from description
+func generateTitleFromDescription(desc string) string {
+    trimmed := strings.TrimSpace(desc)
+    if trimmed == "" {
+        return "Issue reported"
+    }
+    words := strings.Fields(trimmed)
+    if len(words) <= 6 {
+        return strings.Join(words, " ")
+    }
+    return strings.Join(words[:6], " ") + "..."
+}
+
+// Helper: estimate priority from keywords
+func estimatePriority(desc string) string {
+    d := strings.ToLower(desc)
+    keywordsCritical := []string{"down", "outage", "cannot access", "security breach", "data loss"}
+    for _, k := range keywordsCritical {
+        if strings.Contains(d, k) {
+            return "CRITICAL"
+        }
+    }
+    keywordsHigh := []string{"urgent", "crash", "error", "failed", "not working"}
+    for _, k := range keywordsHigh {
+        if strings.Contains(d, k) {
+            return "HIGH"
+        }
+    }
+    keywordsLow := []string{"suggestion", "feature request", "minor", "typo"}
+    for _, k := range keywordsLow {
+        if strings.Contains(d, k) {
+            return "LOW"
+        }
+    }
+    return "MEDIUM"
+}
+
 func simpleHash(s string) uint32 {
 	hash := uint32(2166136261)
 	for _, c := range s {
@@ -418,4 +455,41 @@ func simpleHash(s string) uint32 {
 		hash *= 16777619
 	}
 	return hash
+}
+
+// PredictAttributes provides mock predictions for title, category, and priority
+func (m *MockAIService) PredictAttributes(ctx context.Context, description string) (ports.PredictedAttributes, error) {
+    if !m.enabled {
+        return ports.PredictedAttributes{}, fmt.Errorf("AI service disabled")
+    }
+
+    // Simulate network latency (faster than full suggestion)
+    select {
+    case <-time.After(m.latency / 2):
+    case <-ctx.Done():
+        return ports.PredictedAttributes{}, ctx.Err()
+    }
+
+    // Derive simple title, category, and priority
+    title := generateTitleFromDescription(description)
+    _, _, category := m.generateMockSuggestion(description)
+    priority := estimatePriority(description)
+
+    return ports.PredictedAttributes{
+        Title: ports.FieldPrediction{
+            Value:      title,
+            Confidence: 0.72,
+            Source:     "mock",
+        },
+        Category: ports.FieldPrediction{
+            Value:      category,
+            Confidence: 0.76,
+            Source:     "mock",
+        },
+        Priority: ports.FieldPrediction{
+            Value:      priority,
+            Confidence: 0.70,
+            Source:     "mock",
+        },
+    }, nil
 }
