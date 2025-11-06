@@ -37,6 +37,9 @@ func (r *PostgresTicketRepository) Create(ctx context.Context, ticket *domain.Ti
 		if err != nil {
 			return fmt.Errorf("failed to marshal AI insight: %w", err)
 		}
+	} else {
+		// Set to nil for proper NULL handling in database
+		aiInsightJSON = nil
 	}
 
 	var assignedTo *string
@@ -53,7 +56,12 @@ func (r *PostgresTicketRepository) Create(ctx context.Context, ticket *domain.Ti
 		string(ticket.Priority),
 		ticket.CreatedBy,
 		assignedTo,
-		aiInsightJSON,
+		func() interface{} {
+			if aiInsightJSON == nil {
+				return nil
+			}
+			return string(aiInsightJSON)
+		}(),
 		ticket.CreatedAt,
 		ticket.UpdatedAt,
 	)
@@ -130,6 +138,9 @@ func (r *PostgresTicketRepository) Update(ctx context.Context, ticket *domain.Ti
 		if err != nil {
 			return fmt.Errorf("failed to marshal AI insight: %w", err)
 		}
+	} else {
+		// Set to nil for proper NULL handling in database
+		aiInsightJSON = nil
 	}
 
 	var assignedTo *string
@@ -145,7 +156,12 @@ func (r *PostgresTicketRepository) Update(ctx context.Context, ticket *domain.Ti
 		string(ticket.Category),
 		string(ticket.Priority),
 		assignedTo,
-		aiInsightJSON,
+		func() interface{} {
+			if aiInsightJSON == nil {
+				return nil
+			}
+			return string(aiInsightJSON)
+		}(),
 		ticket.UpdatedAt,
 	)
 
