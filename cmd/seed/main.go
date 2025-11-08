@@ -39,8 +39,8 @@ func main() {
 
 	// upsert user by email; let DB generate UUID id by default
 	query := `
-	INSERT INTO users (email, password, role, created_at, updated_at)
-	VALUES ($1, $2, $3, $4, $5)
+	INSERT INTO users (id, email, password, role, created_at, updated_at)
+	VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5)
 	ON CONFLICT (email) DO UPDATE SET
 	  password = EXCLUDED.password,
 	  role = EXCLUDED.role,

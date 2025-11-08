@@ -30,11 +30,9 @@ import (
     "github.com/fixora/fixora/infrastructure/service/ratelimit"
     "github.com/fixora/fixora/infrastructure/service/recaptcha"
 
-    aiadapter "github.com/fixora/fixora/internal/adapter/ai"
-    pers "github.com/fixora/fixora/internal/adapter/persistence"
-    aihttp "github.com/fixora/fixora/internal/adapter/http"
-    aiports "github.com/fixora/fixora/internal/ports"
-    aiusecase "github.com/fixora/fixora/internal/usecase"
+    aiadapter "github.com/fixora/fixora/infrastructure/service/ai"
+    aiports "github.com/fixora/fixora/application/port/outbound"
+    aiusecase "github.com/fixora/fixora/application/usecase"
 )
 
 func main() {
@@ -222,13 +220,13 @@ func main() {
     aiEmbeddings := aiFactory.Embeddings()
     aiTraining := aiFactory.Training()
 
-    // Repositori internal untuk AI & Ticket
-    knowledgeRepo := pers.NewPostgresKnowledgeRepository(db, aiEmbeddings)
-    ticketRepo := pers.NewPostgresTicketRepository(db)
+    // Repositori untuk AI & Ticket (Postgres adapters)
+    knowledgeRepo := postgres.NewPostgresKnowledgeRepository(db, aiEmbeddings)
+    ticketRepo := postgres.NewPostgresTicketRepository(db)
 
     // UseCase AI
     aiUC := aiusecase.NewAIUseCase(aiSuggestion, aiEmbeddings, knowledgeRepo, ticketRepo, aiTraining)
-    aiHandler := aihttp.NewAIHandler(aiUC)
+    aiHandler := handler.NewAIHandler(aiUC)
 
     // Gunakan Gorilla Mux untuk rute AI, dan delegasikan lainnya ke ServeMux
     router := mux.NewRouter()

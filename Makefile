@@ -152,9 +152,9 @@ install-tools:
 generate-mocks:
 	@echo "Generating mocks..."
 	@if command -v mockgen >/dev/null 2>&1; then \
-		mockgen -source=internal/ports/repository.go -destination=test/mocks/repository_mock.go; \
-		mockgen -source=internal/ports/ai.go -destination=test/mocks/ai_mock.go; \
-		mockgen -source=internal/ports/notification.go -destination=test/mocks/notification_mock.go; \
+		mkdir -p test/mocks; \
+		mockgen -source=application/port/outbound/repository.go -destination=test/mocks/repository_mock.go; \
+		mockgen -source=application/port/outbound/ai.go -destination=test/mocks/ai_mock.go; \
 	else \
 		echo "mockgen not installed. Run 'make install-tools' first."; \
 	fi

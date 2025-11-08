@@ -1,13 +1,14 @@
 package config
 
 import (
-	"errors"
-	"os"
-	"strconv"
-	"time"
-	"strings"
+    "errors"
+    "fmt"
+    "os"
+    "strconv"
+    "time"
+    "strings"
 
-	"github.com/joho/godotenv"
+    "github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -40,10 +41,36 @@ type Config struct {
 	LogEnableRequestLog  bool
 	LogEnableResponseLog bool
 
+	// AI configuration (partial, aligned with internal)
+	AIProvider        string
+	AIEmbeddingModel  string
+	AISuggestionModel string
+	AIEmbeddingDim    int
+	AITopK            int
+	AIMinConfidence   float64
+	AITimeoutMs       int
+	AIEnableCache     bool
+	AICacheTTLMin     int
+	AIChunkSize       int
+	AIChunkOverlap    int
+	AIBatchSize       int
+	AIMaxConcurrency  int
+	AIMockMode        bool
+	OpenAIAPIKey      string
+	ZAIAPIKey         string
+
 	// CORS configuration
 	CORSEnabled          bool
 	CORSAllowedOrigins   []string
 	CORSAllowCredentials bool
+
+	// SSE configuration
+	SSEEnabled           bool
+	SSEFlushInterval     time.Duration
+	SSEHeartbeatInterval time.Duration
+	SSEMaxConnections    int
+	SSEMessageBufferSize int
+	SSEClientTimeout     time.Duration
 }
 
 var (
@@ -81,9 +108,35 @@ func Load() (*Config, error) {
 		LogEnableRequestLog:  getEnvOrDefaultBool("LOG_ENABLE_REQUEST_LOG", true),
 		LogEnableResponseLog: getEnvOrDefaultBool("LOG_ENABLE_RESPONSE_LOG", false),
 
+		// AI configuration
+		AIProvider:        getEnvOrDefault("AI_PROVIDER", "mock"),
+		OpenAIAPIKey:      getEnvOrDefault("OPENAI_API_KEY", ""),
+		ZAIAPIKey:         getEnvOrDefault("ZAI_API_KEY", ""),
+		AIEmbeddingModel:  getEnvOrDefault("AI_EMBEDDING_MODEL", "text-embedding-ada-002"),
+		AISuggestionModel: getEnvOrDefault("AI_SUGGESTION_MODEL", "gpt-3.5-turbo"),
+		AIEmbeddingDim:    getEnvOrDefaultInt("AI_EMBEDDING_DIM", 1536),
+		AITopK:            getEnvOrDefaultInt("AI_TOP_K", 10),
+		AIMinConfidence:   getEnvOrDefaultFloat("AI_MIN_CONFIDENCE", 0.4),
+		AITimeoutMs:       getEnvOrDefaultInt("AI_TIMEOUT_MS", 5000),
+		AIEnableCache:     getEnvOrDefaultBool("AI_ENABLE_CACHE", true),
+		AICacheTTLMin:     getEnvOrDefaultInt("AI_CACHE_TTL_MIN", 60),
+		AIChunkSize:       getEnvOrDefaultInt("AI_CHUNK_SIZE", 800),
+		AIChunkOverlap:    getEnvOrDefaultInt("AI_CHUNK_OVERLAP", 150),
+		AIBatchSize:       getEnvOrDefaultInt("AI_BATCH_SIZE", 32),
+		AIMaxConcurrency:  getEnvOrDefaultInt("AI_MAX_CONCURRENCY", 5),
+		AIMockMode:        getEnvOrDefaultBool("AI_MOCK_MODE", true),
+
 		CORSEnabled:          getEnvOrDefaultBool("CORS_ENABLED", true),
 		CORSAllowCredentials: getEnvOrDefaultBool("CORS_ALLOW_CREDENTIALS", true),
 		CORSAllowedOrigins:   parseAllowedOrigins(getEnvOrDefault("CORS_ALLOWED_ORIGINS", "")),
+
+		// SSE configuration
+		SSEEnabled:           getEnvOrDefaultBool("SSE_ENABLED", true),
+		SSEFlushInterval:     getEnvOrDefaultDuration("SSE_FLUSH_INTERVAL", 250*time.Millisecond),
+		SSEHeartbeatInterval: getEnvOrDefaultDuration("SSE_HEARTBEAT_INTERVAL", 15*time.Second),
+		SSEMaxConnections:    getEnvOrDefaultInt("SSE_MAX_CONNECTIONS", 1000),
+		SSEMessageBufferSize: getEnvOrDefaultInt("SSE_MESSAGE_BUFFER_SIZE", 256),
+		SSEClientTimeout:     getEnvOrDefaultDuration("SSE_CLIENT_TIMEOUT", 30*time.Second),
 	}
 	
 	// Validate required fields
@@ -127,6 +180,14 @@ func Load() (*Config, error) {
 	// Validate reCAPTCHA secret when enabled (and not skipped)
 	if cfg.RecaptchaEnabled && !cfg.RecaptchaSkip && cfg.RecaptchaSecret == "" {
 		return nil, ErrMissingRecaptchaSecret
+	}
+
+	// Validate AI provider keys if provider selected
+	if cfg.AIProvider == "openai" && cfg.OpenAIAPIKey == "" {
+		logMissing("OPENAI_API_KEY for AI_PROVIDER=openai")
+	}
+	if cfg.AIProvider == "zai" && cfg.ZAIAPIKey == "" {
+		logMissing("ZAI_API_KEY for AI_PROVIDER=zai")
 	}
 	
 	// Parse rate limiting config
@@ -204,4 +265,38 @@ func parseAllowedOrigins(value string) []string {
 		}
 	}
 	return res
+}
+
+// getEnvOrDefaultFloat returns float64 env or default
+
+func getEnvOrDefaultFloat(key string, defaultValue float64) float64 {
+    if value := os.Getenv(key); value != "" {
+        parsed, err := strconv.ParseFloat(value, 64)
+        if err != nil {
+            return defaultValue
+        }
+        return parsed
+    }
+    return defaultValue
+}
+
+func getEnvOrDefaultDuration(key string, defaultValue time.Duration) time.Duration {
+    if value := os.Getenv(key); value != "" {
+        // interpret as seconds if numeric, else parse like Go duration
+        if n, err := strconv.Atoi(value); err == nil {
+            return time.Duration(n) * time.Second
+        }
+        d, err := time.ParseDuration(value)
+        if err != nil {
+            return defaultValue
+        }
+        return d
+    }
+    return defaultValue
+}
+
+func logMissing(msg string) {
+    // lightweight warning for missing optional AI keys
+    // avoid introducing a logger dependency here
+    fmt.Fprintf(os.Stderr, "[config] missing %s\n", msg)
 }
