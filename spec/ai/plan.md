@@ -289,7 +289,7 @@ Extensions:
 ## 14. Notes on Speckit Alignment
 
 * All ports & use cases are written to be testable & mockable.
-* Domain-first: domain invariants live in `internal/domain` and have no infra deps.
+* Domain-first: domain invariants live in `domain/` and have no infra deps.
 * TDD-friendly: tests for every use case; event contracts versioned.
 
 ---

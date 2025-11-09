@@ -4,7 +4,18 @@
       "Bash(go mod tidy:*)",
       "Bash(go:*)",
       "Bash(mkdir:*)",
-      "Bash(set:*)"
+      "Bash(set:*)",
+      "Bash(find:*)",
+      "Bash(timeout:*)",
+      "Bash(sudo systemctl:*)",
+      "Bash(psql:*)",
+      "Bash(sudo apt:*)",
+      "Bash(sudo apt install:*)",
+      "Bash(docker run:*)",
+      "Bash(env:*)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": []

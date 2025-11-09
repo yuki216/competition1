@@ -23,20 +23,31 @@ Fixora is an AI-assisted IT ticketing system designed to streamline IT support p
 Fixora follows Clean Architecture principles with Domain-Driven Design (DDD):
 
 ```
-/cmd/fixora/           # Application entry point
-/internal/
-  /domain            # Domain models and business logic
-  /usecase           # Application use cases
-  /ports             # Interface definitions
-  /adapter/          # External integrations
-    /http            # HTTP handlers
-    /persistence     # Database repositories
-    /ai              # AI service adapters
-  /infra/            # Infrastructure services
-    /sse             # Server-Sent Events
-  /config/           # Configuration management
-/migrations/         # Database migrations
-/docs/              # Documentation
+/cmd/server/                 # Application entry point (main server)
+/domain/                     # Domain entities, value objects, errors
+/application/
+  /port/
+    /inbound/               # Use case inputs/contracts
+    /outbound/              # Interfaces for external services (repositories, AI, tokens)
+  /usecase/                 # Application use cases (business orchestration)
+/infrastructure/
+  /adapter/
+    /postgres/              # Database repositories (Postgres adapters)
+  /http/
+    /handler/               # HTTP handlers (transport layer)
+    /middleware/            # HTTP middleware
+    /response/              # Response envelope helpers
+  /service/
+    /ai/                    # AI provider adapters (OpenAI, mock)
+    /jwt/                   # Token service (JWT)
+    /logger/                # Structured logger
+    /password/              # Password hashing/verification
+    /ratelimit/             # Rate limiting utilities
+    /recaptcha/             # reCAPTCHA verification client
+/migrations/                # Database migrations
+/api/                       # Swagger UI & OpenAPI spec
+/docs/                      # Documentation
+/test/                      # Tests & mocks
 ```
 
 ## Technology Stack

@@ -26,12 +26,10 @@ ON knowledge_entries(status, category) WHERE status = 'active';
 
 -- Knowledge chunks: Optimized vector search with filters
 -- Create separate indexes for different search patterns
+-- Note: PostgreSQL does not support subqueries in partial index predicates.
+-- We fall back to a standard index on entry_id.
 CREATE INDEX IF NOT EXISTS idx_kb_chunks_entry_status
-ON kb_chunks(entry_id)
-WHERE EXISTS (
-    SELECT 1 FROM knowledge_entries ke
-    WHERE ke.id = kb_chunks.entry_id AND ke.status = 'active'
-);
+ON kb_chunks(entry_id);
 
 -- Full-text search index for knowledge content (optional)
 CREATE INDEX IF NOT EXISTS idx_kb_chunks_content_gin
@@ -66,12 +64,10 @@ ON tickets(created_at)
 WHERE status = 'RESOLVED';
 
 -- Only index active knowledge chunks for search
+-- Note: PostgreSQL does not support subqueries in partial index predicates.
+-- We fall back to an unfiltered vector index on embedding.
 CREATE INDEX IF NOT EXISTS idx_kb_chunks_active_embedding
-ON kb_chunks USING ivfflat (embedding vector_cosine_ops)
-WHERE EXISTS (
-    SELECT 1 FROM knowledge_entries ke
-    WHERE ke.id = kb_chunks.entry_id AND ke.status = 'active'
-);
+ON kb_chunks USING ivfflat (embedding vector_cosine_ops);
 
 -- Function to update vector index statistics
 CREATE OR REPLACE FUNCTION update_vector_index_stats()
@@ -113,8 +109,8 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE VIEW index_usage_stats AS
 SELECT
     schemaname,
-    tablename,
-    indexname,
+    relname AS tablename,
+    indexrelname AS indexname,
     idx_tup_read,
     idx_tup_fetch,
     idx_scan
